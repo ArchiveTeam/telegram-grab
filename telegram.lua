@@ -516,6 +516,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
   file:close()
   for key, data in pairs({
     ["telegram-x2kj4uadm0lrniv"] = discovered_items,
+    ["telegram-iy46ve7bql0k79p"] = discovered_channels,
     ["telegram-channels-aqpadsraxi2b78y"] = discovered_channels,
     ["urls-h051713fi1agegy"] = discovered_outlinks
   }) do
