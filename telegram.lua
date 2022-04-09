@@ -308,6 +308,10 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     if not string.match(html, "telegram%-cdn%.org")
       and not string.match(html, "telesco%.pe") then
       print("Could not find CDNs.")
+io.stdout:write(url .. "\n")
+io.stdout:write("Could not find CDNs.\n")
+io.stdout:flush()
+os.execute("sleep 1000")
       abort_item()
       return {}
     end
