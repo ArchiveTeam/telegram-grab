@@ -309,6 +309,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       and not string.match(html, "telesco%.pe") then
       print("Could not find CDNs.")
       abort_item()
+      os.execute("sleep 10")
       return {}
     end
     if string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?embed=1&single=1$") then
@@ -407,6 +408,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     if string.match(html, "tgme_widget_message_error")
       or not string.match(html, "tgme_widget_message_author") then
       print("Post does not exist.")
+      os.execute("sleep 10")
       abort_item()
       return false
     end
