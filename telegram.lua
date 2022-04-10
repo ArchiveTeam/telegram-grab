@@ -34,6 +34,8 @@ local bad_items = {}
 local ids = {}
 local allowed_resources = {}
 
+local retry_url = false
+
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
 end
@@ -93,8 +95,6 @@ find_item = function(url)
     type_ = 'post'
   end
   if value then
-    abortgrab = false
-    queue_resources = true
     item_type = type_
     if --[[type_ == "url" or]] type_ == "channel" then
       item_value = value
@@ -107,8 +107,15 @@ find_item = function(url)
       item_channel, item_post = string.match(value, "^([^/]+)/(.+)$")
       ids[item_post] = true
     end
-    item_name = item_type .. ":" .. item_value
-    print("Archiving item " .. item_name)
+    item_name_new = item_type .. ":" .. item_value
+    if item_name_new ~= item_name then
+      abortgrab = false
+      queue_resources = true
+      retry_url = false
+      tries = 0
+      item_name = item_name_new
+      print("Archiving item " .. item_name)
+    end
   end
 end
 
@@ -305,13 +312,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   if allowed(url) and status_code < 300
     and string.match(url, "^https?://[^/]+%.me/") then
     html = read_file(file)
-    if not string.match(html, "telegram%-cdn%.org")
-      and not string.match(html, "telesco%.pe") then
-      print("Could not find CDNs.")
-      abort_item()
-      os.execute("sleep 10")
-      return {}
-    end
     if string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?embed=1&single=1$") then
       local html_new = string.gsub(html, '<div%s+class="tgme_widget_message_user">.-</div>', "") 
       if html == html_new then
@@ -398,25 +398,44 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     abort_item()
     return false
   end
-  if http_stat["statcode"] ~= 200 and not string.match(url["url"], "%?single") then
-    print("status code not 200")
-    abort_item()
+  if http_stat["statcode"] ~= 200 and not string.match(url["url"], "[%?&]single") then
+    print("Status code not 200")
+    retry_url = true
     return false
   end
-  if string.match(url["url"], "^https?://[^/]+/([^/]+/[^/]+)%?embed=1") then
+  if string.match(url["url"], "^https?://[^/]+%.me/") then
     local html = read_file(http_stat["local_file"])
-    if string.match(html, "tgme_widget_message_error")
-      or not string.match(html, "tgme_widget_message_author") then
-      print("Post does not exist.")
-      os.execute("sleep 10")
-      abort_item()
+    if not string.match(html, "telegram%-cdn%.org")
+      and not string.match(html, "telesco%.pe") then
+      print("Could not find CDNs.")
+      retry_url = true
       return false
     end
-  --[[elseif string.match(url["url"], "^https?://[^/]+/s/")
-    and http_stat["statcode"] ~= 200 then
-    abort_item()
-    return false]]
+    if string.match(url["url"], "[%?&]embed=1") then
+      if string.match(html, "tgme_widget_message_error")
+        or not string.match(html, "tgme_widget_message_author") then
+        print("Post does not exist.")
+        retry_url = true
+        return false
+      end
+    --[[elseif string.match(url["url"], "^https?://[^/]+/s/")
+      and http_stat["statcode"] ~= 200 then
+      abort_item()
+      return false]]
+    elseif http_stat["statcode"] == 200 then
+      local image_domain = string.match(html, '<meta%s+property="og:image"%s+content="https?://([^/"]+)')
+      if not image_domain or (
+        not string.match(image_domain, "telegram%-cdn%.org")
+        and not string.match(image_domain, "telesco%.pe")
+      ) then
+        print("Main image has bad domain.")
+        retry_url = true
+        return false
+      end
+    end
   end
+  retry_url = false
+  tries = 0
   return true
 end
 
@@ -429,10 +448,6 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
 
   find_item(url["url"])
 
-  if status_code == 204 then
-    return wget.actions.EXIT
-  end
-
   if status_code >= 300 and status_code <= 399 then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
     if processed(newloc) or not allowed(newloc, url["url"]) then
@@ -441,7 +456,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     end
   end
   
-  if (status_code >= 200 and status_code <= 399) then
+  if status_code == 200 then
     downloaded[url["url"]] = true
     downloaded[string.gsub(url["url"], "https?://", "http://")] = true
   end
@@ -450,38 +465,33 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     abort_item()
     return wget.actions.EXIT
   end
-  
-  if status_code >= 500
-      or (status_code >= 400 and status_code ~= 404)
-      or status_code  == 0 then
-    io.stdout:write("Server returned " .. http_stat.statcode .. " (" .. err .. "). Sleeping.\n")
+
+  if retry_url or status_code == 0 then
+    io.stdout:write("Server returned bad response. Sleeping.\n")
     io.stdout:flush()
-    local maxtries = 8
-    if not allowed(url["url"]) then
-        maxtries = 0
+    local maxtries = 12
+    if (item_type == "post" and string.match(url["url"], "%?embed=1&single=1$"))
+      or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$")) then
+      io.stdout:write("Bad response on first URL.\n")
+      io.stdout:flush()
+      maxtries = 3
     end
-    if tries >= maxtries then
+    if tries > maxtries then
       io.stdout:write("\nI give up...\n")
       io.stdout:flush()
       tries = 0
-      if allowed(url["url"]) then
-        return wget.actions.ABORT
-      else
-        return wget.actions.EXIT
-      end
+      abort_item()
+      return wget.actions.EXIT
     end
-    os.execute("sleep " .. math.floor(math.pow(2, tries)))
+    os.execute("sleep " .. math.random(
+      math.floor(math.pow(2, tries-0.5)),
+      math.floor(math.pow(2, tries))
+    ))
     tries = tries + 1
     return wget.actions.CONTINUE
   end
 
   tries = 0
-
-  local sleep_time = 0
-
-  if sleep_time > 0.001 then
-    os.execute("sleep " .. sleep_time)
-  end
 
   return wget.actions.NOTHING
 end
