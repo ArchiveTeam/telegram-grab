@@ -120,12 +120,17 @@ find_item = function(url)
 end
 
 allowed = function(url, parenturl)
-  local new_channel = string.match(url, "^https?://[^/]+%.me/([^/%?&#]+)")
-  if new_channel
-    and new_channel ~= "s"
-    and new_channel ~= "api"
-    and new_channel ~= "css" then
-    discover_item(discovered_channels, "channel:" .. new_channel)
+  for _, pattern in pairs({
+    "^https?://[^/]+%.me/([^/%?&#]+)",
+    "^https?://[^/]+%.me/s/([^/%?&#]+)"
+  }) do
+    local new_channel = string.match(url, pattern)
+    if new_channel
+      and new_channel ~= "s"
+      and new_channel ~= "api"
+      and new_channel ~= "css" then
+      discover_item(discovered_channels, "channel:" .. new_channel)
+    end
   end
 
   if string.match(url, "^https?://[^/]*telesco%.pe/")
@@ -297,10 +302,12 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   queue_resources = true
 
   local domain, path = string.match(url, "^https?://([^/]+)(/.+)$")
-  if domain == "www.t.me"
+  if (
+    domain == "www.t.me"
     or domain == "t.me"
     or domain == "www.telegram.me"
-    or domain == "telegram.me" then
+    or domain == "telegram.me"
+  ) and not string.match(url, "%?embed=1") then
     check("https://t.me" .. path)
     check("https://telegram.me" .. path)
   elseif string.match(domain, "telesco%.pe") then
@@ -321,6 +328,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
       html = html_new
       local base = string.match(url, "^([^%?]+)")
+      check(base .. "?embed=1&discussion=1")
+      check(base .. "?embed=1&discussion=1&comments_limit=5")
+      check(base)
       check(base .. "?single")
       check(base .. "?single=1")
       check(base .. "?embed=1")
@@ -394,17 +404,28 @@ end
 
 wget.callbacks.write_to_warc = function(url, http_stat)
   find_item(url["url"])
+
   if abortgrab then
     abort_item()
     return false
   end
-  if http_stat["statcode"] ~= 200 and not string.match(url["url"], "[%?&]single") then
+
+  if http_stat["statcode"] ~= 200 and not string.match(url["url"], "%?single") then
     print("Status code not 200")
     retry_url = true
     return false
   end
+
   if string.match(url["url"], "^https?://[^/]+%.me/") then
     local html = read_file(http_stat["local_file"])
+    if string.match(url["url"], "%?embed=1&discussion=1") then
+      if string.match(html, '"comments_cnt"') then
+        print("Found discussions comments. Not currently supported.")
+        abort_item()
+        return false
+      end
+      return true
+    end
     if not string.match(html, "telegram%-cdn%.org")
       and not string.match(html, "telesco%.pe") then
       print("Could not find CDNs.")
@@ -418,10 +439,6 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         retry_url = true
         return false
       end
-    --[[elseif string.match(url["url"], "^https?://[^/]+/s/")
-      and http_stat["statcode"] ~= 200 then
-      abort_item()
-      return false]]
     elseif http_stat["statcode"] == 200 then
       local image_domain = string.match(html, '<meta%s+property="og:image"%s+content="https?://([^/"]+)')
       if not image_domain or (
@@ -434,8 +451,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       end
     end
   end
+
   retry_url = false
   tries = 0
+
   return true
 end
 
@@ -505,10 +524,9 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
         "https://legacy-api.arpa.li/backfeed/legacy/" .. key,
         items .. "\0"
       )
-      print(string.match(body, "(.-)%s+$"))
-      if code == 200 then
-        --[[io.stdout:write("Submitted discovered URLs.\n")
-        io.stdout:flush()]]
+      if code == 200 and body ~= nil and JSON:decode(body)["status_code"] == 200 then
+        io.stdout:write(string.match(body, "^(.-)%s*$") .. "\n")
+        io.stdout:flush()
         break
       end
       io.stdout:write("Failed to submit discovered URLs." .. tostring(code) .. tostring(body) .. "\n")
