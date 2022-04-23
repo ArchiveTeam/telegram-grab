@@ -129,6 +129,10 @@ find_item = function(url)
 end
 
 allowed = function(url, parenturl)
+  if string.match(url, "%?q=") then
+    return false
+  end
+
   for _, pattern in pairs({
     "^https?://[^/]+%.me/([^/%?&#]+)",
     "^https?://[^/]+%.me/s/([^/%?&#]+)"
