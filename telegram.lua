@@ -520,11 +520,10 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$")) then
       io.stdout:write("Bad response on first URL.\n")
       io.stdout:flush()
-      maxtries = 3
+      maxtries = 0
     end
+    tries = tries + 1
     if tries > maxtries then
-      io.stdout:write("\nI give up...\n")
-      io.stdout:flush()
       tries = 0
       abort_item()
       return wget.actions.EXIT
@@ -533,7 +532,6 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       math.floor(math.pow(2, tries-0.5)),
       math.floor(math.pow(2, tries))
     ))
-    tries = tries + 1
     return wget.actions.CONTINUE
   end
 
