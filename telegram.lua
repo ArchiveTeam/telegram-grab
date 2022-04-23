@@ -36,6 +36,15 @@ local allowed_resources = {}
 
 local retry_url = false
 
+local current_js = {
+  ["widget-frame.js"] = "56",
+  ["tgwallpaper.min.js"] = "3",
+  ["tgsticker.js"] = "27",
+  ["telegram-web.js"] = "14",
+  ["telegram-widget.js"] = "19",
+  ["discussion-widget.js"] = "9"
+}
+
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
 end
@@ -320,13 +329,14 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     and string.match(url, "^https?://[^/]+%.me/") then
     html = read_file(file)
     if string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?embed=1&single=1$") then
-      local html_new = string.gsub(html, '<div%s+class="tgme_widget_message_user">.-</div>', "") 
+      --[[local html_new = string.gsub(html, '<div%s+class="tgme_widget_message_user">.-</div>', "") 
       if html == html_new then
-        print("No profile image.")
+        io.stdout:write("No profile image.\n")
+        io.stdout:flush()
         abort_item()
         return {}
       end
-      html = html_new
+      html = html_new]]
       local base = string.match(url, "^([^%?]+)")
       check(base .. "?embed=1&discussion=1")
       check(base .. "?embed=1&discussion=1&comments_limit=5")
@@ -334,15 +344,15 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(base .. "?single")
       check(base .. "?single=1")
       check(base .. "?embed=1")
-      check(base .. "?embed=1&tme_mode=1")
+      check(base .. "?embed=1&mode=tme")
       check(base .. "?embed=1&single=1")
-      check(base .. "?embed=1&tme_mode=1&single=1")
+      check(base .. "?embed=1&mode=tme&single=1")
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]+)%?.*", "%1s/%2"))
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?before=%3"))
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?after=%3"))
-    elseif string.match(url, "^https?://[^/]+/[^/]+/[0-9]+")
-      or string.match(url, "^https?://[^/]+/s/[^/]+/[0-9]+") then
-      return urls
+    elseif --[[string.match(url, "^https?://[^/]+/[^/]+/[0-9]+")
+      or]] string.match(url, "^https?://[^/]+/s/[^/]+/[0-9]+") then
+      queue_resources = false
     end
     if string.match(url, "^https?://[^/]+/s/[^/%?&]+$") then
       check(string.gsub(url, "^(https?://[^/]+/)s/([^/%?&]+)$", "%1%2"))
@@ -361,7 +371,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       local image_url = string.match(html, '<meta%s+property="og:image"%s+content="([^"]+)"')
       local twitter_url = string.match(html, '<meta%s+property="twitter:image"%s+content="([^"]+)"')
       if image_url ~= twitter_url then
-        print("Profile images not equal for og:image and twitter:image.")
+        io.stdout:write("Profile images not equal for og:image and twitter:image.\n")
+        io.stdout:flush()
         abort_item()
         return {}
       end
@@ -369,7 +380,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       for newurl in string.gmatch(html, '<i%s+class="tgme_page_photo_image[^"]+"[^>]+>%s*<img%s+src="([^"]+)"') do
         check(newurl)
       end
-      queue_resources = false
     end
     if item_type == "post"
       and (
@@ -411,16 +421,26 @@ wget.callbacks.write_to_warc = function(url, http_stat)
   end
 
   if http_stat["statcode"] ~= 200 and not string.match(url["url"], "%?single") then
-    print("Status code not 200")
+    io.stdout:write("Status code not 200\n")
+    io.stdout:flush()
     retry_url = true
     return false
   end
 
   if string.match(url["url"], "^https?://[^/]+%.me/") then
     local html = read_file(http_stat["local_file"])
+    for js_name, version in string.gmatch(html, "([^/]+%.js)%?([0-9]+)") do
+      if current_js[js_name] ~= version then
+        io.stdout:write("Script " .. js_name .. " with version " .. version .. " is not known.\n")
+        io.stdout:flush()
+        abort_item()
+        return false
+      end
+    end
     if string.match(url["url"], "%?embed=1&discussion=1") then
       if string.match(html, '"comments_cnt"') then
-        print("Found discussions comments. Not currently supported.")
+        io.stdout:write("Found discussions comments. Not currently supported.\n")
+        io.stdout:flush()
         abort_item()
         return false
       end
@@ -428,14 +448,16 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     end
     if not string.match(html, "telegram%-cdn%.org")
       and not string.match(html, "telesco%.pe") then
-      print("Could not find CDNs.")
+      io.stdout:write("Could not find CDNs.\n")
+      io.stdout:flush()
       retry_url = true
       return false
     end
     if string.match(url["url"], "[%?&]embed=1") then
       if string.match(html, "tgme_widget_message_error")
         or not string.match(html, "tgme_widget_message_author") then
-        print("Post does not exist.")
+        io.stdout:write("Post does not exist.\n")
+        io.stdout:flush()
         retry_url = true
         return false
       end
@@ -445,7 +467,8 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         not string.match(image_domain, "telegram%-cdn%.org")
         and not string.match(image_domain, "telesco%.pe")
       ) then
-        print("Main image has bad domain.")
+        io.stdout:write("Main image has bad domain.\n")
+        io.stdout:flush()
         retry_url = true
         return false
       end
@@ -554,7 +577,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     local items = nil
     local count = 0
     for item, _ in pairs(data) do
-      print("found item", item)
+      --print("found item", item)
       if items == nil then
         items = item
       else
