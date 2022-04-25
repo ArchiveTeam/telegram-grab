@@ -448,9 +448,9 @@ wget.callbacks.write_to_warc = function(url, http_stat)
 
   if string.match(url["url"], "^https?://[^/]*telesco%.pe/")
     or string.match(url["url"], "^https?://[^/]*telegram%-cdn%.org/") then
-    if status_code == 404 then
+    if http_stat["statcode"] == 404 then
       return true
-    elseif status_code ~= 200 then
+    elseif http_stat["statcode"] ~= 200 then
       abort_item()
       return false
     end
