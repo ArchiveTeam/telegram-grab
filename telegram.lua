@@ -178,7 +178,7 @@ allowed = function(url, parenturl)
   end
 
   if item_type == "post" then
-    for s in string.gmatch(url, "([0-9]+)") do
+    for s in string.gmatch(url, "([0-9a-zA-Z]+)") do
       if ids[s] then
         return true
       end
