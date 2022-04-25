@@ -100,7 +100,7 @@ find_item = function(url)
     type_ = 'channel'
   end
   if not value then
-    value = string.match(url, "^https?://t%.me/([^/]+/[^/]+)%?embed=1&single=1$")
+    value = string.match(url, "^https?://t%.me/([^/]+/[^/]+)%?embed=1$")
     type_ = 'post'
   end
   if value then
@@ -345,7 +345,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   if allowed(url) and status_code < 300
     and string.match(url, "^https?://[^/]+%.me/") then
     html = read_file(file)
-    if string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?embed=1&single=1$") then
+    if string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?embed=1$") then
       --[[local html_new = string.gsub(html, '<div%s+class="tgme_widget_message_user">.-</div>', "") 
       if html == html_new then
         io.stdout:write("No profile image.\n")
@@ -358,12 +358,14 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(base .. "?embed=1&discussion=1")
       --check(base .. "?embed=1&discussion=1&comments_limit=5")
       check(base)
-      check(base .. "?single")
-      check(base .. "?single=1")
       check(base .. "?embed=1")
       check(base .. "?embed=1&mode=tme")
-      check(base .. "?embed=1&single=1")
-      check(base .. "?embed=1&mode=tme&single=1")
+      if string.match(html, "%?single") then
+        check(base .. "?single")
+        --check(base .. "?single=1")
+        check(base .. "?embed=1&single=1")
+        check(base .. "?embed=1&mode=tme&single=1")
+      end
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]+)%?.*", "%1s/%2"))
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?before=%3"))
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?after=%3"))
@@ -575,7 +577,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:write("Server returned bad response. Sleeping.\n")
     io.stdout:flush()
     local maxtries = 10
-    if (item_type == "post" and string.match(url["url"], "%?embed=1&single=1$"))
+    if (item_type == "post" and string.match(url["url"], "%?embed=1$"))
       or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$")) then
       io.stdout:write("Bad response on first URL.\n")
       io.stdout:flush()
