@@ -343,7 +343,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       html = html_new]]
       local base = string.match(url, "^([^%?]+)")
       check(base .. "?embed=1&discussion=1")
-      check(base .. "?embed=1&discussion=1&comments_limit=5")
+      --check(base .. "?embed=1&discussion=1&comments_limit=5")
       check(base)
       check(base .. "?single")
       check(base .. "?single=1")
@@ -579,7 +579,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     local items = nil
     local count = 0
     for item, _ in pairs(data) do
-      --print("found item", item)
+      print("found item", item)
       if items == nil then
         items = item
       else
