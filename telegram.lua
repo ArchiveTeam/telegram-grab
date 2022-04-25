@@ -177,10 +177,23 @@ allowed = function(url, parenturl)
     return false
   end
 
+  if not string.match(url, "^https?://t%.me/")
+    and not string.match(url, "^https?://[^/]*telegram%.me/") then
+    return false
+  end
+
   if item_type == "post" then
+    local has_post_id = false
     for s in string.gmatch(url, "([0-9a-zA-Z]+)") do
       if ids[s] then
-        return true
+        has_post_id = true
+      end
+    end
+    if has_post_id then
+      for r in string.gmatch(url, "([^/%?&]+)") do
+        if item_channel == r then
+          return true
+        end
       end
     end
   end
@@ -354,9 +367,14 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]+)%?.*", "%1s/%2"))
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?before=%3"))
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?after=%3"))
+      --check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1share/url?url=%1%2/%3"))
     elseif --[[string.match(url, "^https?://[^/]+/[^/]+/[0-9]+")
       or]] string.match(url, "^https?://[^/]+/s/[^/]+/[0-9]+") then
       queue_resources = false
+    end
+    if string.match(url, "%?embed=1&discussion=1$")
+      and string.match(html, '<div%s+class="tme_no_messages_found">') then
+      check(url .. "&comments_limit=5")
     end
     if string.match(url, "^https?://[^/]+/s/[^/%?&]+$") then
       check(string.gsub(url, "^(https?://[^/]+/)s/([^/%?&]+)$", "%1%2"))
@@ -380,7 +398,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         abort_item()
         return {}
       end
-      check(image_url)
+      if image_url then
+        check(image_url)
+      end
       for newurl in string.gmatch(html, '<i%s+class="tgme_page_photo_image[^"]+"[^>]+>%s*<img%s+src="([^"]+)"') do
         check(newurl)
       end
@@ -424,6 +444,13 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     return false
   end
 
+  if http_stat["statcode"] == 404 and (
+    string.match(url["url"], "^https?://[^/]*telesco%.pe/")
+    or string.match(url["url"], "^https?://[^/]*telegram%-cdn%.org/")
+  ) then
+    return true
+  end
+
   if http_stat["statcode"] ~= 200 and not string.match(url["url"], "%?single") then
     io.stdout:write("Status code not 200\n")
     io.stdout:flush()
@@ -442,7 +469,8 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       end
     end
     if string.match(url["url"], "%?embed=1&discussion=1") then
-      if string.match(html, '"comments_cnt"') then
+      if string.match(html, '"comments_cnt"')
+        and not string.match(html, '<div%s+class="tme_no_messages_found">') then
         io.stdout:write("Found discussions comments. Not currently supported.\n")
         io.stdout:flush()
         abort_item()
@@ -452,10 +480,36 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     end
     if not string.match(html, "telegram%-cdn%.org")
       and not string.match(html, "telesco%.pe") then
-      io.stdout:write("Could not find CDNs.\n")
+      io.stdout:write("Could not find CDNs on " .. url["url"] .. ".\n")
       io.stdout:flush()
-      retry_url = true
-      return false
+      if http_stat["statcode"] == 302
+        and string.match(url["url"], "%?single") then
+        io.stdout:write("Valid 302 ?single page.\n")
+        io.stdout:flush()
+      elseif not (
+        item_type == "post"
+        and string.match(html, '<div%s+class="tgme_page%s+tgme_page_post">')
+        and string.match(html, '<div%s+class="tgme_page_widget">')
+      ) and not (
+        string.match(url["url"], "^https?://[^/]+/s/")
+        and string.match(html, '<div%s+class="tgme_channel_info_header_username">')
+        and string.match(html, '<div%s+class="tgme_channel_info_header_title">')
+        and string.match(html, '<div%s+class="tgme_channel_info_counters">')
+      ) and not (
+        item_type == "channel"
+        and string.match(url["url"], "^https?://[^/]+/[^/%?]+$")
+        and string.match(html, 'href="/s/[^"/%?]+">Preview%s+channel<')
+      ) and not (
+        string.match(url["url"], "/share/url%?url=")
+        and string.match(html, '<div%s+class="tgme_page_desc_header">')
+        and string.match(html, '<a%s+class="tgme_action_button_new shine"%s+href="tg://msg_url%?url=[^"]+">Share</a>')
+      ) then
+        retry_url = true
+        return false
+      else
+        io.stdout:write("Still valid page.\n")
+        io.stdout:flush()
+      end
     end
     if string.match(url["url"], "[%?&]embed=1") then
       if string.match(html, "tgme_widget_message_error")
@@ -466,10 +520,12 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         return false
       end
     elseif http_stat["statcode"] == 200 then
-      local image_domain = string.match(html, '<meta%s+property="og:image"%s+content="https?://([^/"]+)')
+      local image_domain = string.match(html, '<meta%s+property="og:image"%s+content="([^"]*)"')
       if not image_domain or (
-        not string.match(image_domain, "telegram%-cdn%.org")
-        and not string.match(image_domain, "telesco%.pe")
+        image_domain ~= ""
+        and not string.match(image_domain, "telegram%-cdn%.org/")
+        and not string.match(image_domain, "telesco%.pe/")
+        and not string.match(image_domain, "telegram%.org/img/")
       ) then
         io.stdout:write("Main image has bad domain.\n")
         io.stdout:flush()
@@ -515,7 +571,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   if retry_url or status_code == 0 then
     io.stdout:write("Server returned bad response. Sleeping.\n")
     io.stdout:flush()
-    local maxtries = 12
+    local maxtries = 10
     if (item_type == "post" and string.match(url["url"], "%?embed=1&single=1$"))
       or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$")) then
       io.stdout:write("Bad response on first URL.\n")
@@ -579,7 +635,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     local items = nil
     local count = 0
     for item, _ in pairs(data) do
-      print("found item", item)
+      --print("found item", item)
       if items == nil then
         items = item
       else
