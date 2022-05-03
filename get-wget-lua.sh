@@ -32,9 +32,7 @@ cd get-wget-lua.tmp
 git clone https://github.com/archiveteam/wget-lua.git
 
 cd wget-lua
-git checkout v1.20.3-at
-
-#echo -n 1.20.3-at-lua | tee ./.version ./.tarball-version > /dev/null
+git checkout v1.21.3-at
 
 if ./bootstrap && ./configure $CONFIGURE_SSL_OPT --disable-nls && make && src/wget -V | grep -q lua
 then
