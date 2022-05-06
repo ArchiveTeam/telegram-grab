@@ -111,6 +111,7 @@ find_item = function(url)
   end
   if value then
     item_type = type_
+    ids = {}
     if --[[type_ == "url" or]] type_ == "channel" then
       item_value = value
       if type_ == "channel" then
@@ -135,7 +136,9 @@ find_item = function(url)
 end
 
 allowed = function(url, parenturl)
-  if string.match(url, "%?q=") then
+  if string.match(url, "%?q=")
+    or string.match(url, "%?before=")
+    or string.match(url, "%?after=") then
     return false
   end
 
@@ -190,7 +193,7 @@ allowed = function(url, parenturl)
 
   if item_type == "post" then
     local has_post_id = false
-    for s in string.gmatch(url, "([0-9a-zA-Z]+)") do
+    for s in string.gmatch(url, "([0-9a-zA-Z_]+)") do
       if ids[s] then
         has_post_id = true
       end
