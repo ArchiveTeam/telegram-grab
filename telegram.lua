@@ -268,7 +268,17 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     if not processed(url_)
       and string.match(url_, "^https?://[^/%.]+%..+")
       and allowed(url_, origurl) then
-      table.insert(urls, { url=url_ })
+      if string.match(url_, "%?before=") or string.match(url_, "%?after=") then
+        table.insert(urls, {
+          url=url_,
+          headers={
+            ["X-Requested-With"]="XMLHttpRequest",
+            ["Accept"]="application/json, text/javascript, */*; q=0.01"
+          }
+        })
+      else
+        table.insert(urls, { url=url_ })
+      end
       addedtolist[url_] = true
       addedtolist[url] = true
     end
@@ -367,8 +377,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         check(base .. "?embed=1&mode=tme&single=1")
       end
       check(string.gsub(url, "^(https?://[^/]+/)([^%?]+)%?.*", "%1s/%2"))
-      check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?before=%3"))
-      check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?after=%3"))
+      --check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?before=%3"))
+      --check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1s/%2?after=%3"))
       --check(string.gsub(url, "^(https?://[^/]+/)([^%?]-)/([0-9]+)%?.*", "%1share/url?url=%1%2/%3"))
     elseif --[[string.match(url, "^https?://[^/]+/[^/]+/[0-9]+")
       or]] string.match(url, "^https?://[^/]+/s/[^/]+/[0-9]+") then
@@ -465,6 +475,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
 
   if string.match(url["url"], "^https?://[^/]+%.me/") then
     local html = read_file(http_stat["local_file"])
+    if string.match(url["url"], "%?before=")
+      or string.match(url["url"], "%?after=") then
+      html = JSON:decode(html)
+    end
     for js_name, version in string.gmatch(html, "([^/]+%.js)%?([0-9]+)") do
       if current_js[js_name] ~= version then
         io.stdout:write("Script " .. js_name .. " with version " .. version .. " is not known.\n")
