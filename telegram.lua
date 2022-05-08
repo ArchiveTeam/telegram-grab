@@ -400,15 +400,21 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     if string.match(url, "^https?://[^/]+/s/[^/%?&]+$") then
       check(string.gsub(url, "^(https?://[^/]+/)s/([^/%?&]+)$", "%1%2"))
       local highest_id = -1
-      for id in string.gmatch(html, 'data%-post="' .. item_channel .. '/([0-9]+)"') do
-        id = tonumber(id)
-        if id > highest_id then
-          highest_id = id
+      local actual_channel = nil
+      for channel, id in string.gmatch(html, 'data%-post="([^/]+)/([0-9]+)"') do
+        if string.lower(channel) == string.lower(item_channel) then
+          actual_channel = channel
+          id = tonumber(id)
+          if id > highest_id then
+            highest_id = id
+          end
         end
       end
-      if highest_id > -1 then
-        for i=0,highest_id do
-          discover_item(discovered_items, "post:" .. item_channel .. ":" .. tostring(i))
+      if actual_channel then
+        if highest_id > -1 then
+          for i=0,highest_id do
+            discover_item(discovered_items, "post:" .. actual_channel .. ":" .. tostring(i))
+          end
         end
       end
       local image_url = string.match(html, '<meta%s+property="og:image"%s+content="([^"]+)"')
