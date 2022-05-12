@@ -33,7 +33,10 @@ local discovered_items = {}
 local discovered_channels = {}
 local bad_items = {}
 local ids = {}
+local covered_posts = {}
+local to_queue = {}
 local allowed_resources = {}
+local is_sub_post = false
 
 local retry_url = false
 
@@ -109,9 +112,10 @@ find_item = function(url)
     value = string.match(url, "^https?://t%.me/([^/]+/[^/]+)%?embed=1$")
     type_ = 'post'
   end
-  if value then
+  if value and not covered_posts[string.lower(value)] then
     item_type = type_
     ids = {}
+    to_queue = {}
     if --[[type_ == "url" or]] type_ == "channel" then
       item_value = value
       if type_ == "channel" then
@@ -361,6 +365,10 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     check(string.gsub(url, "telegram%-cdn%.org", "telesco%.pe"))
   end
 
+  for url, _ in pairs(to_queue) do
+    check(url)
+  end
+
   if allowed(url) and status_code < 300
     and string.match(url, "^https?://[^/]+%.me/") then
     html = read_file(file)
@@ -373,6 +381,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         return {}
       end
       html = html_new]]
+      if is_sub_post then
+        return {}
+      end
       local base = string.match(url, "^([^%?]+)")
       check(base .. "?embed=1&discussion=1")
       --check(base .. "?embed=1&discussion=1&comments_limit=5")
@@ -493,6 +504,35 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     if string.match(url["url"], "%?before=")
       or string.match(url["url"], "%?after=") then
       html = JSON:decode(html)
+    end
+    if string.match(url["url"], "%?embed=1$") and string.match(html, "%?single") then
+      local found_ids = {}
+      local current_id = tonumber(item_post)
+      for channel, id in string.gmatch(html, "([^/]+)/([0-9]+)%?single[^a-zA-Z0-9]") do
+        if string.lower(channel) == string.lower(item_channel) then
+          found_ids[tonumber(id)] = true
+        end
+      end
+      while found_ids[current_id] do
+        current_id = current_id - 1
+      end
+      current_id = current_id + 1
+      local min_id = current_id
+      if min_id ~= tonumber(item_post) then
+        is_sub_post = true
+        return false
+      end
+      while found_ids[current_id] do
+        current_id = current_id + 1
+      end
+      current_id = current_id - 1
+      local max_id = current_id
+      for id=min_id,max_id do
+        id = tostring(id)
+        ids[id] = true
+        covered_posts[string.lower(item_channel) .. "/" .. id] = true
+        to_queue["https://t.me/" .. item_channel .. "/" .. id .. "?embed=1"] = true
+      end
     end
     for js_name, version in string.gmatch(html, "([^/]+%.js)%?([0-9]+)") do
       if current_js[js_name] ~= version then
