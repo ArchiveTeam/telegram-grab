@@ -115,7 +115,6 @@ find_item = function(url)
   if value and not covered_posts[string.lower(value)] then
     item_type = type_
     ids = {}
-    to_queue = {}
     if --[[type_ == "url" or]] type_ == "channel" then
       item_value = value
       if type_ == "channel" then
@@ -366,8 +365,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   end
 
   for url, _ in pairs(to_queue) do
+    io.stdout:write("Queuing extra URL " .. url .. ".\n")
+    io.stdout:flush()
     check(url)
   end
+  to_queue = {}
 
   if allowed(url) and status_code < 300
     and string.match(url, "^https?://[^/]+%.me/") then
@@ -382,6 +384,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
       html = html_new]]
       if is_sub_post then
+        io.stdout:write("Found sub post.\n")
+        io.stdout:flush()
+        is_sub_post = false
         return {}
       end
       local base = string.match(url, "^([^%?]+)")
