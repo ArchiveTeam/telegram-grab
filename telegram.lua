@@ -41,9 +41,9 @@ local is_sub_post = false
 local retry_url = false
 
 local current_js = {
-  ["widget-frame.js"] = "56",
+  ["widget-frame.js"] = "57",
   ["tgwallpaper.min.js"] = "3",
-  ["tgsticker.js"] = "27",
+  ["tgsticker.js"] = "29",
   ["telegram-web.js"] = "14",
   ["telegram-widget.js"] = "19",
   ["discussion-widget.js"] = "9"
@@ -82,15 +82,25 @@ read_file = function(file)
 end
 
 processed = function(url)
-  if downloaded[url] or addedtolist[url] then
+  if downloaded[url] or addedtolist[url] or discovered_outlinks[""][url] then
     return true
   end
   return false
 end
 
 discover_item = function(target, item)
-  if not target[item] then
-    target[item] = true
+  if not item then
+    return nil
+  end
+  local shard = ""
+  if string.match(item, "^https?://[^/]*telegram%.org/dl%?") then
+    shard = "telegram"
+  end
+  if not target[shard] then
+    target[shard] = {}
+  end
+  if not target[shard][item] then
+    target[shard][item] = true
   end
 end
 
@@ -389,6 +399,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         is_sub_post = false
         return {}
       end
+      discover_item(discovered_outlinks, string.match(html, '<i[^>]+class="tgme_widget_message_user_photo[^"]+"[^>]+>%s*<img%s+src="([^"]+)">%s*</i>'))
       local base = string.match(url, "^([^%?]+)")
       check(base .. "?embed=1&discussion=1")
       --check(base .. "?embed=1&discussion=1&comments_limit=5")
@@ -447,6 +458,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       for newurl in string.gmatch(html, '<i%s+class="tgme_page_photo_image[^"]+"[^>]+>%s*<img%s+src="([^"]+)"') do
         check(newurl)
       end
+    end
+    if item_type == "post" and string.match(url, "^https?://[^/]+/[^/]+/[0-9]+$") then
+      discover_item(discovered_outlinks, string.match(html, '<meta%s+property="og:image"%s+content="([^"]+)">'))
     end
     if item_type == "post"
       and (
@@ -680,15 +694,19 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
 end
 
 wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total_downloaded_bytes, total_download_time)
-  local function submit_backfeed(items, key)
+  local function submit_backfeed(items, key, shard)
     local tries = 0
     local maxtries = 4
+    local parameters = ""
+    if shard ~= "" then
+      parameters = "?shard=" .. shard
+    end
     while tries < maxtries do
       if killgrab then
         return false
       end
       local body, code, headers, status = http.request(
-        "https://legacy-api.arpa.li/backfeed/legacy/" .. key,
+        "https://legacy-api.arpa.li/backfeed/legacy/" .. key .. parameters,
         items .. "\0"
       )
       if code == 200 and body ~= nil and JSON:decode(body)["status_code"] == 200 then
@@ -717,25 +735,27 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     ["telegram-channels-aqpadsraxi2b78y"] = discovered_channels,
     ["urls-h051713fi1agegy"] = discovered_outlinks
   }) do
-    print('queuing for', string.match(key, "^(.+)%-"))
-    local items = nil
-    local count = 0
-    for item, _ in pairs(data) do
-      --print("found item", item)
-      if items == nil then
-        items = item
-      else
-        items = items .. "\0" .. item
+    for shard, urls_data in pairs(data) do
+      print('queuing for', string.match(key, "^(.+)%-"), "on shard", shard)
+      local items = nil
+      local count = 0
+      for item, _ in pairs(urls_data) do
+        print("found item", item)
+        if items == nil then
+          items = item
+        else
+          items = items .. "\0" .. item
+        end
+        count = count + 1
+        if count == 100 then
+          submit_backfeed(items, key, shard)
+          items = nil
+          count = 0
+        end
       end
-      count = count + 1
-      if count == 100 then
-        submit_backfeed(items, key)
-        items = nil
-        count = 0
+      if items ~= nil then
+        submit_backfeed(items, key, shard)
       end
-    end
-    if items ~= nil then
-      submit_backfeed(items, key)
     end
   end
 end
