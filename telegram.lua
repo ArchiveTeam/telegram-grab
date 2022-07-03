@@ -82,7 +82,8 @@ read_file = function(file)
 end
 
 processed = function(url)
-  if downloaded[url] or addedtolist[url] or discovered_outlinks[""][url] then
+  if downloaded[url] or addedtolist[url]
+    or (discovered_outlinks[""] and discovered_outlinks[""][url]) then
     return true
   end
   return false
