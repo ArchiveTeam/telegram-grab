@@ -37,6 +37,10 @@ local covered_posts = {}
 local to_queue = {}
 local allowed_resources = {}
 local is_sub_post = false
+local api_url = nil
+local api_peer = nil
+local api_top_msg_id = nil
+local api_discussion_hash = nil
 
 local retry_url = false
 
@@ -82,6 +86,11 @@ read_file = function(file)
 end
 
 processed = function(url)
+  for _, v in pairs(discovered_outlinks) do
+    if v[url] then
+      return true
+    end
+  end
   if downloaded[url] or addedtolist[url]
     or (discovered_outlinks[""] and discovered_outlinks[""][url]) then
     return true
@@ -89,12 +98,25 @@ processed = function(url)
   return false
 end
 
+encode_params = function(d)
+  local result = ""
+  for k, v in pairs(d) do
+    if result ~= "" then
+      result = result .. "&"
+    end
+    result = result .. k .. "=" .. urlparse.escape(v)
+  end
+  return result
+end
+
 discover_item = function(target, item)
   if not item then
     return nil
   end
   local shard = ""
-  if string.match(item, "^https?://[^/]*telegram%.org/dl%?") then
+  if string.match(item, "^https?://[^/]*telegram%.org/dl%?")
+    or string.match(item, "^https?://[^/]*telegram%-cdn%.org/")
+    or string.match(item, "^https?://[^/]*telesco%.pe/") then
     shard = "telegram"
   end
   if not target[shard] then
@@ -142,6 +164,10 @@ find_item = function(url)
       abortgrab = false
       queue_resources = true
       retry_url = false
+      api_url = nil
+      api_peer = nil
+      api_top_msg_id = nil
+      api_discussion_hash = nil
       tries = 0
       item_name = item_name_new
       print("Archiving item " .. item_name)
@@ -150,9 +176,14 @@ find_item = function(url)
 end
 
 allowed = function(url, parenturl)
+  if url == api_url and not parenturl then
+    return true
+  end
+
   if string.match(url, "%?q=")
     or string.match(url, "%?before=")
-    or string.match(url, "%?after=") then
+    or string.match(url, "%?after=")
+    or string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?comment=[0-9]+$") then
     return false
   end
 
@@ -358,6 +389,25 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
   end
 
+  local function queue_discussion(data_before)
+    io.stdout:write("Requesting discussion data before " .. data_before .. ".\n")
+    io.stdout:flush()
+    table.insert(urls, {
+      url=api_url,
+      post_data=encode_params({
+        peer=api_peer,
+        top_msg_id=api_top_msg_id,
+        discussion_hash=api_discussion_hash,
+        before_id=data_before,
+        method="loadComments"
+      }),
+      headers={
+        ["X-Requested-With"]="XMLHttpRequest",
+        ["Accept"]="application/json, text/javascript, */*; q=0.01"
+      }
+    })
+  end
+
   queue_resources = true
 
   local domain, path = string.match(url, "^https?://([^/]+)(/.+)$")
@@ -470,6 +520,26 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       ) then
       queue_resources = false
     end
+    if string.match(url, "[%?&]discussion=1") then
+      local data = JSON:decode(string.match(html, "TWidgetAuth%.init%(({.-})%);"))
+      api_url = data['api_url']
+      local form_data = string.match(html, "(<form[^>]+>.-</form>)")
+      local data_before = string.match(html, '<div%s+class="tme_messages_more%s+accent_bghover%s+js%-messages_more"%s+data%-before="([0-9]+)">')
+      if data_before then
+        api_peer = string.match(form_data, '<input[^>]+name="peer"%s+value="([^"]+)"%s*/>')
+        api_top_msg_id = string.match(form_data, '<input[^>]+name="top_msg_id"%s+value="([^"]+)"%s*/>')
+        api_discussion_hash = string.match(form_data, '<input[^>]+name="discussion_hash"%s+value="([^"]+)"%s*/>')
+        queue_discussion(data_before)
+      end
+    end
+    if url == api_url then
+      local data = JSON:decode(html)
+      html = string.gsub(data["comments_html"], "\\", "")
+      local data_before = string.match(html, '<div%s+class="tme_messages_more%s+accent_bghover%s+js%-messages_more"%s+data%-before="([0-9]+)">')
+      if data_before then
+        queue_discussion(data_before)
+      end
+    end
     html = string.gsub(html, "</span>", "")
     for newurl in string.gmatch(string.gsub(html, "&quot;", '"'), '([^"]+)') do
       checknewurl(newurl)
@@ -525,6 +595,16 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       or string.match(url["url"], "%?after=") then
       html = JSON:decode(html)
     end
+    if url["url"] == api_url then
+      local data = JSON:decode(html)
+      if data["comments_cnt"] < 5 or not data["ok"] then
+        io.stdout:write("Did not receive \"ok\" from API server.\n")
+        io.stdout:flush()
+        abort_item()
+        return false
+      end
+      html = string.gsub(data["comments_html"], "\\", "")
+    end
     if string.match(url["url"], "%?embed=1$") and string.match(html, "%?single") then
       local found_ids = {}
       local current_id = tonumber(item_post)
@@ -562,7 +642,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         return false
       end
     end
-    if string.match(url["url"], "%?embed=1&discussion=1") then
+    --[[if string.match(url["url"], "%?embed=1&discussion=1") then
       if string.match(html, '"comments_cnt"')
         and not string.match(html, '<div%s+class="tme_no_messages_found">') then
         io.stdout:write("Found discussions comments. Not currently supported.\n")
@@ -571,7 +651,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         return false
       end
       return true
-    end
+    end]]
     if not string.match(html, "telegram%-cdn%.org")
       and not string.match(html, "telesco%.pe") then
       io.stdout:write("Could not find CDNs on " .. url["url"] .. ".\n")
@@ -597,6 +677,17 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         string.match(url["url"], "/share/url%?url=")
         and string.match(html, '<div%s+class="tgme_page_desc_header">')
         and string.match(html, '<a%s+class="tgme_action_button_new shine"%s+href="tg://msg_url%?url=[^"]+">Share</a>')
+      ) and not (
+        string.match(url["url"], "%?embed=1&discussion=1")
+        and (
+          not string.match(html, '<div%s+class="tme_no_messages_found">')
+          or string.match(html, '<div%s+class="tme_no_messages_found">Discussion%s+is not%s+available%s+at the%s+moment%.')
+        )
+      ) and not (
+        url["url"] == api_url
+        and string.match(html, '<span%s+class="tgme_widget_message_author_name"%s+dir="auto">')
+        and string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_reply_text"%s+dir="auto">')
+        and string.match(html, '<input%s+type="hidden"%s+name="reply_to_id"%s+value="[0-9]+">')
       ) then
         retry_url = true
         return false
@@ -605,26 +696,29 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         io.stdout:flush()
       end
     end
-    if string.match(url["url"], "[%?&]embed=1") then
-      if string.match(html, "tgme_widget_message_error")
-        or not string.match(html, "tgme_widget_message_author") then
-        io.stdout:write("Post does not exist.\n")
-        io.stdout:flush()
-        retry_url = true
-        return false
-      end
-    elseif http_stat["statcode"] == 200 then
-      local image_domain = string.match(html, '<meta%s+property="og:image"%s+content="([^"]*)"')
-      if not image_domain or (
-        image_domain ~= ""
-        and not string.match(image_domain, "telegram%-cdn%.org/")
-        and not string.match(image_domain, "telesco%.pe/")
-        and not string.match(image_domain, "telegram%.org/img/")
-      ) then
-        io.stdout:write("Main image has bad domain.\n")
-        io.stdout:flush()
-        retry_url = true
-        return false
+    if not string.match(url["url"], "[%?&]discussion=1")
+      and url["url"] ~= api_url then
+      if string.match(url["url"], "[%?&]embed=1") then
+        if string.match(html, "tgme_widget_message_error")
+          or not string.match(html, "tgme_widget_message_author") then
+          io.stdout:write("Post does not exist.\n")
+          io.stdout:flush()
+          retry_url = true
+          return false
+        end
+      elseif http_stat["statcode"] == 200 then
+        local image_domain = string.match(html, '<meta%s+property="og:image"%s+content="([^"]*)"')
+        if not image_domain or (
+          image_domain ~= ""
+          and not string.match(image_domain, "telegram%-cdn%.org/")
+          and not string.match(image_domain, "telesco%.pe/")
+          and not string.match(image_domain, "telegram%.org/img/")
+        ) then
+          io.stdout:write("Main image has bad domain.\n")
+          io.stdout:flush()
+          retry_url = true
+          return false
+        end
       end
     end
   end
