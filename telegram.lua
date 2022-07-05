@@ -471,8 +471,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       or]] string.match(url, "^https?://[^/]+/s/[^/]+/[0-9]+") then
       queue_resources = false
     end
-    if string.match(url, "%?embed=1&discussion=1$")
-      and string.match(html, '<div%s+class="tme_no_messages_found">') then
+    if string.match(url, "%?embed=1&discussion=1$") then
       check(url .. "&comments_limit=5")
     end
     if string.match(url, "^https?://[^/]+/s/[^/%?&]+$") then
