@@ -682,6 +682,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
           not string.match(html, '<div%s+class="tme_no_messages_found">')
           or string.match(html, '<div%s+class="tme_no_messages_found">Discussion%s+is not%s+available%s+at the%s+moment%.')
           or string.match(html, '<div%s+class="tme_no_messages_found">Please%s+open%s+Telegram%s+to%s+view%s+this%s+discussion%s+from')
+          or string.match(html, '<h3%s+class="tgme_post_discussion_header">%s*<span%s+class="js%-header">Comments</span>%s+on%s+<a%s+href="https?://t%.me/[^/]+/[0-9]+">this%s+post</a>%s*</h3>')
         )
       ) and not (
         url["url"] == api_url
