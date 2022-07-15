@@ -45,7 +45,7 @@ local api_discussion_hash = nil
 local retry_url = false
 
 local current_js = {
-  ["widget-frame.js"] = "58",
+  ["widget-frame.js"] = "59",
   ["tgwallpaper.min.js"] = "3",
   ["tgsticker.js"] = "29",
   ["telegram-web.js"] = "14",
