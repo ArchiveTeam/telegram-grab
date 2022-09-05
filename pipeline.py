@@ -61,7 +61,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20220715.01'
+VERSION = '20220905.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -153,7 +153,7 @@ class SetBadUrls(SimpleTask):
     def process(self, item):
         item['item_name_original'] = item['item_name']
         items = item['item_name'].split('\0')
-        items_lower = [s.lower() for s in items]
+        items_lower = [s.lower().split('#', 1)[0] for s in items]
         with open('%(item_dir)s/%(warc_file_base)s_bad-items.txt' % item, 'r') as f:
             for aborted_item in f:
                 aborted_item = aborted_item.strip().lower()
@@ -284,6 +284,7 @@ class WgetArgs(object):
             wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
             wget_args.append('item-name://'+item_name)
             item_type, item_value = item_name.split(':', 1)
+            item_value = item_value.split('#', 1)[0]
             if item_type == 'post':
                 group, post_id = item_value.split(':', 1)
                 wget_args.extend(['--warc-header', 'telegram-post: {}/{}'.format(group, post_id)])
