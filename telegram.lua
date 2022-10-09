@@ -45,11 +45,11 @@ local api_discussion_hash = nil
 local retry_url = false
 
 local current_js = {
-  ["widget-frame.js"] = "59",
+  ["widget-frame.js"] = "60",
   ["tgwallpaper.min.js"] = "3",
   ["tgsticker.js"] = "29",
   ["telegram-web.js"] = "14",
-  ["telegram-widget.js"] = "19",
+  ["telegram-widget.js"] = "20",
   ["discussion-widget.js"] = "9"
 }
 
