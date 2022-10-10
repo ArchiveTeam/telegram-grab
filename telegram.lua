@@ -49,7 +49,7 @@ local current_js = {
   ["tgwallpaper.min.js"] = "3",
   ["tgsticker.js"] = "29",
   ["telegram-web.js"] = "14",
-  ["telegram-widget.js"] = "20",
+  ["telegram-widget.js"] = "21",
   ["discussion-widget.js"] = "9"
 }
 
