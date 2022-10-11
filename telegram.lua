@@ -765,7 +765,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   if retry_url or status_code == 0 then
     io.stdout:write("Server returned bad response. Sleeping.\n")
     io.stdout:flush()
-    local maxtries = 10
+    local maxtries = 11
     if (item_type == "post" and string.match(url["url"], "%?embed=1$"))
       or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$")) then
       io.stdout:write("Bad response on first URL.\n")
