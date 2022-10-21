@@ -716,10 +716,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
           and not string.match(image_domain, "telegram%-cdn%.org/")
           and not string.match(image_domain, "telesco%.pe/")
           and not string.match(image_domain, "telegram%.org/img/")
-          and not (
-            string.match(url["url"], "^https://[^/]+/[^/]+/[0-9]+$")
-            and string.match(image_domain, "data:image/")
-          )
+          and not string.match(image_domain, "data:image/")
         ) then
           io.stdout:write("Main image has bad domain.\n")
           io.stdout:flush()
