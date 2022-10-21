@@ -183,6 +183,7 @@ allowed = function(url, parenturl)
   if string.match(url, "%?q=")
     or string.match(url, "%?before=")
     or string.match(url, "%?after=")
+    or string.match(url, "^https?://[^/]+/addstickers/")
     or string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?comment=[0-9]+$") then
     return false
   end
