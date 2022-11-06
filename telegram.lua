@@ -665,6 +665,14 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         and string.match(html, '<div%s+class="tgme_page%s+tgme_page_post">')
         and string.match(html, '<div%s+class="tgme_page_widget">')
       ) and not (
+        item_type == "post"
+        and (
+          string.match(url["url"], "%?embed=1$")
+          or string.match(url["url"], "%?embed=1&mode=tme$")
+        )
+        and string.match(html, '<img%s+src="data:[^"/]+/')
+        and string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_text"')
+      ) and not (
         string.match(url["url"], "^https?://[^/]+/s/")
         and string.match(html, '<div%s+class="tgme_channel_info_header_username">')
         and string.match(html, '<div%s+class="tgme_channel_info_header_title">')
