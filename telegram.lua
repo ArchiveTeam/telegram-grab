@@ -652,6 +652,9 @@ wget.callbacks.write_to_warc = function(url, http_stat)
   end
 
   if disco_finished and not disco_on then
+    if disco_post_id then
+      abort_item()
+    end
     return false
   end
 
