@@ -42,6 +42,15 @@ local api_peer = nil
 local api_top_msg_id = nil
 local api_discussion_hash = nil
 
+local disco_finished = false
+local disco_on = false
+local disco_post_id = 0
+local disco_first_id = nil
+local disco_scan_size = 1
+local disco_explored_top = false
+local disco_count = 0
+local disco_checked = {}
+
 local retry_url = false
 
 local current_js = {
@@ -52,6 +61,8 @@ local current_js = {
   ["telegram-widget.js"] = "21",
   ["discussion-widget.js"] = "9"
 }
+
+math.randomseed(os.time())
 
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
@@ -128,6 +139,9 @@ discover_item = function(target, item)
 end
 
 find_item = function(url)
+  if disco_on or disco_finished then
+    return nil
+  end
   local value = nil
   local type_ = nil
   --[[if not string.match(url, "^https?://t%.me/")
@@ -148,6 +162,14 @@ find_item = function(url)
   if value and not covered_posts[string.lower(value)] then
     item_type = type_
     ids = {}
+    disco_finished = false
+    disco_on = false
+    disco_post_id = 0
+    disco_first_id = nil
+    disco_scan_size = 1
+    disco_explored_top = false
+    disco_count = 0
+    disco_checked = {}
     if --[[type_ == "url" or]] type_ == "channel" then
       item_value = value
       if type_ == "channel" then
@@ -284,14 +306,14 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
     addedtolist[url] = true
     return true
   end]]
-  
+
   return false
 end
 
 wget.callbacks.get_urls = function(file, url, is_css, iri)
   local urls = {}
   local html = nil
-  
+
   downloaded[url] = true
 
   if abortgrab then
@@ -409,6 +431,37 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     })
   end
 
+  if disco_finished and not disco_on then
+    io.stdout:write("Discovery proces finished.\n")
+    io.stdout:flush()
+    return {}
+  end
+
+  if disco_on
+    and (
+      string.match(url, "^https?://t%.me/[^/%?]+$")
+      or string.match(url, "^https?://t%.me/[^/%?]+/[0-9]+%?embed=1$")
+    ) then
+    local candidate_id = nil
+    if disco_finished then
+      candidate_id = disco_first_id
+      disco_on = false
+    else
+      candidate_id = disco_post_id + math.ceil(-math.log(1-math.random())*8^disco_scan_size)
+      while disco_checked[candidate_id] do
+        candidate_id = candidate_id + 1
+      end
+    end
+    local newurl = "https://t.me/" .. item_channel .. "/" .. tostring(candidate_id) .. "?embed=1#"
+    if disco_checked[candidate_id] then
+      newurl = newurl .. "#"
+    end
+    disco_checked[candidate_id] = true
+    table.insert(urls, { url=newurl })
+    os.execute("sleep 0.5")
+    return urls
+  end
+
   queue_resources = true
 
   local domain, path = string.match(url, "^https?://([^/]+)(/.+)$")
@@ -417,7 +470,12 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     or domain == "t.me"
     or domain == "www.telegram.me"
     or domain == "telegram.me"
-  ) and not string.match(url, "%?embed=1") then
+  )
+  and not string.match(url, "%?embed=1")
+  and not (
+    disco_on
+    and string.match(url, "^https?://t%.me/[^/%?]+/[0-9]+$")
+  ) then
     check("https://t.me" .. path)
     check("https://telegram.me" .. path)
   elseif string.match(domain, "telesco%.pe") then
@@ -437,7 +495,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     and string.match(url, "^https?://[^/]+%.me/") then
     html = read_file(file)
     if string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?embed=1$") then
-      --[[local html_new = string.gsub(html, '<div%s+class="tgme_widget_message_user">.-</div>', "") 
+      --[[local html_new = string.gsub(html, '<div%s+class="tgme_widget_message_user">.-</div>', "")
       if html == html_new then
         io.stdout:write("No profile image.\n")
         io.stdout:flush()
@@ -582,6 +640,51 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     end
   end
 
+  if disco_finished and not disco_on then
+    return false
+  end
+
+  if disco_on
+    and string.match(url["url"], "^https?://t%.me/[^/%?]+/[0-9]+%?embed=1$") then
+    local html = read_file(http_stat["local_file"])
+    local actual_channel = string.match(html, 'data%-post="([^/]+)/([0-9]+)"')
+    if not actual_channel then
+      disco_count = disco_count + 1
+      if disco_count == 20 then
+        if disco_scan_size >= 7 then
+          disco_explored_top = true
+        end
+        if disco_scan_size == 1 and disco_explored_top then
+          disco_finished = true
+          return false
+        end
+        if not disco_explored_top then
+          disco_scan_size = disco_scan_size + 1
+        else
+          disco_scan_size = disco_scan_size - 1
+        end
+        disco_count = 0
+        io.stdout:write("Setting scan size to " .. tostring(disco_scan_size) .. ".\n")
+        io.stdout:flush()
+      end
+    else
+      disco_post_id = tonumber(string.match(url["url"], "([0-9]+)%?embed=1$"))
+      io.stdout:write("Setting post ID " .. tostring(disco_post_id) .. ".\n")
+      io.stdout:flush()
+      for i=0,disco_post_id do
+        discover_item(discovered_items, "post:" .. actual_channel .. ":" .. tostring(i))
+      end
+      if not disco_first_id then
+        disco_first_id = disco_post_id
+      end
+      disco_scan_size = disco_scan_size + 1
+      disco_count = 0
+      io.stdout:write("Setting scan size to " .. tostring(disco_scan_size) .. ".\n")
+      io.stdout:flush()
+    end
+    return false
+  end
+
   if http_stat["statcode"] ~= 200 and not string.match(url["url"], "%?single") then
     io.stdout:write("Status code not 200\n")
     io.stdout:flush()
@@ -668,10 +771,13 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         item_type == "post"
         and (
           string.match(url["url"], "%?embed=1$")
+          or string.match(url["url"], "%?embed=1&single=1$")
           or string.match(url["url"], "%?embed=1&mode=tme$")
+          or string.match(url["url"], "%?embed=1&mode=tme&single=1$")
         )
         and string.match(html, '<img%s+src="data:[^"/]+/')
-        and string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_text"')
+        --and string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_text"')
+        and string.lower(string.match(html, 'data%-post="([^/]+/[0-9]+)"')) == string.lower(string.match(url["url"], "([^/]+/[0-9]+)%?embed=1"))
       ) and not (
         string.match(url["url"], "^https?://[^/]+/s/")
         and string.match(html, '<div%s+class="tgme_channel_info_header_username">')
@@ -680,7 +786,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       ) and not (
         item_type == "channel"
         and string.match(url["url"], "^https?://[^/]+/[^/%?]+$")
-        and string.match(html, 'href="/s/[^"/%?]+">Preview%s+channel<')
+        and (
+          string.match(html, 'href="/s/[^"/%?]+">Preview%s+channel<')
+          or string.match(html, "tgme_page_title")
+        )
       ) and not (
         string.match(url["url"], "/share/url%?url=")
         and string.match(html, '<div%s+class="tgme_page_desc_header">')
@@ -743,7 +852,7 @@ end
 
 wget.callbacks.httploop_result = function(url, err, http_stat)
   status_code = http_stat["statcode"]
-  
+
   url_count = url_count + 1
   io.stdout:write(url_count .. "=" .. status_code .. " " .. url["url"] .. " \n")
   io.stdout:flush()
@@ -761,7 +870,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
       return wget.actions.EXIT
     end
   end
-  
+
   if status_code == 200 then
     downloaded[url["url"]] = true
     downloaded[string.gsub(url["url"], "https?://", "http://")] = true
@@ -772,15 +881,26 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     return wget.actions.EXIT
   end
 
+  if disco_finished and retry_url then
+    abort_item()
+    return wget.actions.EXIT
+  end
+
   if retry_url or status_code == 0 then
     io.stdout:write("Server returned bad response. Sleeping.\n")
     io.stdout:flush()
     local maxtries = 11
     if (item_type == "post" and string.match(url["url"], "%?embed=1$"))
-      or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$")) then
+      or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/([^/%?&]+)$")) then
       io.stdout:write("Bad response on first URL.\n")
       io.stdout:flush()
       maxtries = 0
+    elseif item_type == "channel"
+      and string.match(url["url"], "^https?://t%.me/s/([^/%?&]+)$") then
+      disco_on = true
+      io.stdout:write("Maybe a channel with no public index.\n")
+      io.stdout:flush()
+      return wget.actions.NOTHING
     end
     tries = tries + 1
     if tries > maxtries then
@@ -846,15 +966,20 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
       print('queuing for', string.match(key, "^(.+)%-"), "on shard", shard)
       local items = nil
       local count = 0
+      local all_counted = 0
+      for _ in pairs(urls_data) do
+        all_counted = all_counted + 1
+      end
+      print("queuing", all_counted, " items")
       for item, _ in pairs(urls_data) do
-        print("found item", item)
+        --print("found item", item)
         if items == nil then
           items = item
         else
           items = items .. "\0" .. item
         end
         count = count + 1
-        if count == 100 then
+        if count == 400 then
           submit_backfeed(items, key, shard)
           items = nil
           count = 0
