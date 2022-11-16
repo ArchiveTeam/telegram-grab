@@ -31,6 +31,7 @@ local queue_resources = true
 local discovered_outlinks = {}
 local discovered_items = {}
 local discovered_channels = {}
+local discovered_group_items = {}
 local bad_items = {}
 local ids = {}
 local covered_posts = {}
@@ -692,7 +693,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       io.stdout:write("Setting post ID " .. tostring(disco_post_id) .. ".\n")
       io.stdout:flush()
       for i=0,disco_post_id do
-        discover_item(discovered_items, "post:" .. actual_channel .. ":" .. tostring(i))
+        discover_item(discovered_group_items, "post:" .. actual_channel .. ":" .. tostring(i))
       end
       if not disco_first_id then
         disco_first_id = disco_post_id
@@ -980,6 +981,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
   file:close()
   for key, data in pairs({
     ["telegram-x2kj4uadm0lrniv"] = discovered_items,
+    ["telegram-groups-temp-sqk1lhix8mnnk4p"] = discovered_group_items,
     --["telegram-iy46ve7bql0k79p"] = discovered_channels,
     ["telegram-channels-aqpadsraxi2b78y"] = discovered_channels,
     ["urls-h051713fi1agegy"] = discovered_outlinks
