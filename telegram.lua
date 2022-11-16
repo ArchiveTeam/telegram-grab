@@ -50,6 +50,7 @@ local disco_scan_size = 1
 local disco_explored_top = false
 local disco_count = 0
 local disco_checked = {}
+local disco_current_url = nil
 
 local retry_url = false
 
@@ -139,7 +140,8 @@ discover_item = function(target, item)
 end
 
 find_item = function(url)
-  if disco_on or disco_finished then
+  if disco_current_url
+    and string.match(url, "^([^#]+)") == string.match(disco_current_url, "^([^#]+)") then
     return nil
   end
   local value = nil
@@ -170,6 +172,7 @@ find_item = function(url)
     disco_explored_top = false
     disco_count = 0
     disco_checked = {}
+    disco_current_url = nil
     if --[[type_ == "url" or]] type_ == "channel" then
       item_value = value
       if type_ == "channel" then
@@ -434,6 +437,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   if disco_finished and not disco_on then
     io.stdout:write("Discovery proces finished.\n")
     io.stdout:flush()
+    disco_finished = false
     return {}
   end
 
@@ -444,21 +448,27 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     ) then
     local candidate_id = nil
     if disco_finished then
-      candidate_id = disco_first_id
       disco_on = false
+      if disco_first_id == 0 or not disco_first_id then
+        disco_current_url = "https://t.me/telegram/3?embed=1#"
+        table.insert(urls, { url=disco_current_url })
+        return urls
+      end
+      candidate_id = disco_first_id
     else
       candidate_id = disco_post_id + math.ceil(-math.log(1-math.random())*8^disco_scan_size)
       while disco_checked[candidate_id] do
         candidate_id = candidate_id + 1
       end
     end
-    local newurl = "https://t.me/" .. item_channel .. "/" .. tostring(candidate_id) .. "?embed=1#"
+    disco_current_url = "https://t.me/" .. item_channel .. "/" .. tostring(candidate_id) .. "?embed=1"
+    local newurl = disco_current_url .. "#"
     if disco_checked[candidate_id] then
       newurl = newurl .. "#"
     end
     disco_checked[candidate_id] = true
     table.insert(urls, { url=newurl })
-    os.execute("sleep 0.5")
+    os.execute("sleep 0.6")
     return urls
   end
 
@@ -642,6 +652,16 @@ wget.callbacks.write_to_warc = function(url, http_stat)
 
   if disco_finished and not disco_on then
     return false
+  end
+
+  if disco_on
+    and string.match(url["url"], "^https?://t%.me/[^/%?]+$") then
+    local html = read_file(http_stat["local_file"])
+    if string.match(html, '<a%s+class="tgme_action_button_new[^>]+>Send Message</a>') then
+      disco_on = false
+      abort_item()
+      return false
+    end
   end
 
   if disco_on
@@ -876,12 +896,14 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     downloaded[string.gsub(url["url"], "https?://", "http://")] = true
   end
 
-  if abortgrab then
+  if disco_finished and retry_url then
     abort_item()
-    return wget.actions.EXIT
   end
 
-  if disco_finished and retry_url then
+  if abortgrab then
+    if disco_finished then
+      disco_finished = false
+    end
     abort_item()
     return wget.actions.EXIT
   end
