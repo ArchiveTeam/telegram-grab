@@ -38,6 +38,7 @@ local covered_posts = {}
 local to_queue = {}
 local allowed_resources = {}
 local is_sub_post = false
+local is_group_post = false
 local api_url = nil
 local api_peer = nil
 local api_top_msg_id = nil
@@ -194,6 +195,7 @@ find_item = function(url)
       api_peer = nil
       api_top_msg_id = nil
       api_discussion_hash = nil
+      is_group_post = false
       tries = 0
       item_name = item_name_new
       print("Archiving item " .. item_name)
@@ -709,6 +711,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     return false
   end
 
+  if http_stat["statcode"] == 302 and is_group_post then
+    return true
+  end
+
   if http_stat["statcode"] ~= 200 and not string.match(url["url"], "%?single") then
     io.stdout:write("Status code not 200\n")
     io.stdout:flush()
@@ -731,6 +737,12 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         return false
       end
       html = string.gsub(data["comments_html"], "\\", "")
+    end
+    if string.match(url["url"], "%?embed=1$")
+      and string.match(html, '<a%s+class="tgme_widget_message_author_name"%s+href="') then
+      io.stdout:write("This is a group post.\n")
+      io.stdout:flush()
+      is_group_post = true
     end
     if string.match(url["url"], "%?embed=1$") and string.match(html, "%?single") then
       local found_ids = {}
@@ -887,7 +899,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
 
   find_item(url["url"])
 
-  if status_code >= 300 and status_code <= 399 then
+  if status_code >= 300 and status_code <= 399 and not retry_url then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
     if processed(newloc) or not allowed(newloc, url["url"]) then
       tries = 0
