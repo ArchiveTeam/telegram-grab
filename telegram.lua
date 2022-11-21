@@ -220,7 +220,8 @@ allowed = function(url, parenturl)
 
   for _, pattern in pairs({
     "^https?://[^/]+%.me/([^/%?&#]+)",
-    "^https?://[^/]+%.me/s/([^/%?&#]+)"
+    "^https?://[^/]+%.me/s/([^/%?&#]+)",
+    "^https?://([^%./]+)%.t%.me/"
   }) do
     local new_channel = string.match(url, pattern)
     if new_channel
