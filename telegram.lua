@@ -39,6 +39,7 @@ local to_queue = {}
 local allowed_resources = {}
 local is_sub_post = false
 local is_group_post = false
+local is_media_not_supported = false
 local api_url = nil
 local api_peer = nil
 local api_top_msg_id = nil
@@ -196,6 +197,7 @@ find_item = function(url)
       api_top_msg_id = nil
       api_discussion_hash = nil
       is_group_post = false
+      is_media_not_supported = false
       tries = 0
       item_name = item_name_new
       print("Archiving item " .. item_name)
@@ -738,11 +740,18 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       end
       html = string.gsub(data["comments_html"], "\\", "")
     end
-    if string.match(url["url"], "%?embed=1$")
-      and string.match(html, '<a%s+class="tgme_widget_message_author_name"%s+href="') then
-      io.stdout:write("This is a group post.\n")
-      io.stdout:flush()
-      is_group_post = true
+    if string.match(url["url"], "%?embed=1$") then
+      if string.match(html, '<a%s+class="tgme_widget_message_author_name"%s+href="') then
+        io.stdout:write("This is a group post.\n")
+        io.stdout:flush()
+        is_group_post = true
+      end
+      if string.match(html, '<div%s+class="message_media_not_supported">')
+        and string.match(html, '<div%s+class="message_media_not_supported_label">') then
+        io.stdout:write("This post has unsupported media.\n")
+        io.stdout:flush()
+        is_media_not_supported = true
+      end
     end
     if string.match(url["url"], "%?embed=1$") and string.match(html, "%?single") then
       local found_ids = {}
@@ -801,8 +810,13 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         io.stdout:flush()
       elseif not (
         item_type == "post"
-        and string.match(html, '<div%s+class="tgme_page%s+tgme_page_post">')
-        and string.match(html, '<div%s+class="tgme_page_widget">')
+        and (
+          string.match(html, '<div%s+class="tgme_page%s+tgme_page_post">')
+          and string.match(html, '<div%s+class="tgme_page_widget">')
+        ) or (
+          is_media_not_supported
+          and string.match(html, '<a%s+class="tgme_action_button_new shine"%s+href="tg://[^"]+">View Post</a>')
+        )
       ) and not (
         item_type == "post"
         and (
