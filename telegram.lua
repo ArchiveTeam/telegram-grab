@@ -248,7 +248,7 @@ allowed = function(url, parenturl)
   end
 
   if not string.match(url, "^https?://t%.me/")
-    and not string.match(url, "^https?://www%.t%.me/")
+    and not string.match(url, "^https?://[^%.]+%.t%.me/")
     and not string.match(url, "^https?://telegram%.me/")
     and not string.match(url, "^https?://www%.telegram%.me/") then
     local temp = ""
@@ -264,6 +264,7 @@ allowed = function(url, parenturl)
   end
 
   if not string.match(url, "^https?://t%.me/")
+    and not string.match(url, "^https?://[^%.]+%.t%.me/")
     and not string.match(url, "^https?://[^/]*telegram%.me/") then
     return false
   end
@@ -292,9 +293,14 @@ allowed = function(url, parenturl)
       or string.match(url, "%?q=") then
       return false
     end
-    for s in string.gmatch(url, "([^/%?&]+)") do
-      if ids[s] then
-        return true
+    for _, pattern in pairs({
+      "([^/%?&]+)",
+      "([^/%?&%.]+)"
+    }) do
+      for s in string.gmatch(url, pattern) do
+        if ids[s] then
+          return true
+        end
       end
     end
   end
@@ -480,7 +486,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
 
   queue_resources = true
 
-  local domain, path = string.match(url, "^https?://([^/]+)(/.+)$")
+  local domain, path = string.match(url, "^https?://([^/]+)(/.*)$")
   if (
     domain == "www.t.me"
     or domain == "t.me"
@@ -551,6 +557,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
     if string.match(url, "^https?://[^/]+/s/[^/%?&]+$") then
       check(string.gsub(url, "^(https?://[^/]+/)s/([^/%?&]+)$", "%1%2"))
+      check("https://" .. item_channel .. ".t.me/")
       local highest_id = -1
       local actual_channel = nil
       for channel, id in string.gmatch(html, 'data%-post="([^/]+)/([0-9]+)"') do
@@ -714,7 +721,16 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     return false
   end
 
-  if http_stat["statcode"] == 302 and is_group_post then
+  if http_stat["statcode"] == 302
+    and (
+      is_group_post
+      or (
+        string.match(url["url"], "^https?://[^%./]+%.t%.me/")
+        and http_stat["newloc"] == "https://t.me/" .. item_channel
+      )
+    ) then
+    retry_url = false
+    tries = 0
     return true
   end
 
