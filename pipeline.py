@@ -61,7 +61,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20221121.01'
+VERSION = '20221121.02'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -277,7 +277,7 @@ class WgetArgs(object):
 
         item['item_name'] = '\0'.join(
             s for s in item['item_name'].split('\0')
-            if not s.startswith('user:')
+            if not s.startswith('user:') and not s.startswith('channel:+')
         )
 
         for item_name in item['item_name'].split('\0'):
