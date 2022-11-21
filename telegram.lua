@@ -726,7 +726,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       is_group_post
       or (
         string.match(url["url"], "^https?://[^%./]+%.t%.me/")
-        and http_stat["newloc"] == "https://t.me/" .. item_channel
+        and string.lower(http_stat["newloc"]) == "https://t.me/" .. string.lower(item_channel)
       )
     ) then
     retry_url = false
