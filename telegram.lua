@@ -723,7 +723,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
 
   if http_stat["statcode"] == 302
     and (
-      is_group_post
+      (
+        is_group_post
+        and string.match(url["url"], "^https?://[^/]+/s/[^/]+/[0-9]+$")
+      )
       or (
         string.match(url["url"], "^https?://[^%./]+%.t%.me/")
         and string.lower(http_stat["newloc"]) == "https://t.me/" .. string.lower(item_channel)
@@ -758,7 +761,8 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       html = string.gsub(data["comments_html"], "\\", "")
     end
     if string.match(url["url"], "%?embed=1$") then
-      if string.match(html, '<a%s+class="tgme_widget_message_author_name"%s+href="') then
+      if string.match(html, '<a%s+class="tgme_widget_message_author_name"%s+href="')
+        or string.match(html, '<span%s+class="tgme_widget_message_author_name">%s*<span dir="auto">Deleted Account</span>%s*</span>') then
         io.stdout:write("This is a group post.\n")
         io.stdout:flush()
         is_group_post = true
