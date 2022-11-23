@@ -452,7 +452,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     io.stdout:write("Discovery proces finished.\n")
     io.stdout:flush()
     disco_finished = false
-    return {}
+    check("https://" .. item_channel .. ".t.me/")
+    return urls
   end
 
   if disco_on
@@ -663,13 +664,6 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       abort_item()
       return false
     end
-  end
-
-  if disco_finished and not disco_on then
-    if disco_post_id then
-      abort_item()
-    end
-    return false
   end
 
   if disco_on
@@ -925,6 +919,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
 
   retry_url = false
   tries = 0
+
+  if disco_finished and not disco_on then
+    return false
+  end
 
   return true
 end
