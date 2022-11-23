@@ -934,9 +934,13 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
 
   find_item(url["url"])
 
-  if status_code >= 300 and status_code <= 399 and not retry_url then
+  if status_code >= 300 and status_code <= 399 then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
-    if processed(newloc) or not allowed(newloc, url["url"]) then
+    if status_code == 302 and string.match(newloc, "^https?://telegram%.org/") then
+      abort_item()
+    end
+    if (processed(newloc) or not allowed(newloc, url["url"]))
+      and not retry_url then
       tries = 0
       return wget.actions.EXIT
     end
