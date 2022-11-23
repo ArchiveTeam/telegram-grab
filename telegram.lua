@@ -762,7 +762,8 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     end
     if string.match(url["url"], "%?embed=1$") then
       if string.match(html, '<a%s+class="tgme_widget_message_author_name"%s+href="')
-        or string.match(html, '<span%s+class="tgme_widget_message_author_name">%s*<span dir="auto">Deleted Account</span>%s*</span>') then
+        or string.match(html, '<span%s+class="tgme_widget_message_author_name">%s*<span dir="auto">Deleted Account</span>%s*</span>')
+        or string.match(html, '<div%s+class="tgme_widget_message_author[^"]+">%s*<span%s+class="tgme_widget_message_author_name">') then
         io.stdout:write("This is a group post.\n")
         io.stdout:flush()
         is_group_post = true
