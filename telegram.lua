@@ -1045,6 +1045,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
       print('queuing for', string.match(key, "^(.+)%-"), "on shard", shard)
       local items = nil
       local count = 0
+      local progress_count = 0
       local all_counted = 0
       for _ in pairs(urls_data) do
         all_counted = all_counted + 1
@@ -1058,7 +1059,9 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
           items = items .. "\0" .. item
         end
         count = count + 1
+        progress_count = progress_count + 1
         if count == 400 then
+          io.stdout:write(tostring(progress_count) .. " of " .. tostring(all_counted) .. " ")
           submit_backfeed(items, key, shard)
           items = nil
           count = 0
