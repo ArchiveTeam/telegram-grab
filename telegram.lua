@@ -651,6 +651,13 @@ end
 wget.callbacks.write_to_warc = function(url, http_stat)
   find_item(url["url"])
 
+  if item_type == "channel"
+    and string.match(item_value, "%%") then
+    local new_item = string.match(item_value, "^([^%%]+)")
+    discover_item(discovered_items, "channel:" .. new_item)
+    abort_item()
+  end
+
   if abortgrab then
     abort_item()
     return false

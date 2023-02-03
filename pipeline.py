@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import string
+import urllib.parse
 
 import seesaw
 from seesaw.externalprocess import WgetDownload
@@ -61,7 +62,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20221123.05'
+VERSION = '20230203.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -154,9 +155,10 @@ class SetBadUrls(SimpleTask):
         item['item_name_original'] = item['item_name']
         items = item['item_name'].split('\0')
         items_lower = [s.lower().split('#', 1)[0] for s in items]
+        items_lower = [urllib.parse.unquote(s) for s in items_lower]
         with open('%(item_dir)s/%(warc_file_base)s_bad-items.txt' % item, 'r') as f:
             for aborted_item in f:
-                aborted_item = aborted_item.strip().lower()
+                aborted_item = urllib.parse.unquote(aborted_item.strip().lower())
                 index = items_lower.index(aborted_item)
                 item.log_output('Item {} is aborted.'.format(aborted_item))
                 items.pop(index)
