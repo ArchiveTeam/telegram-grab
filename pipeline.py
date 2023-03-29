@@ -62,7 +62,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20230325.02'
+VERSION = '20230329.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
