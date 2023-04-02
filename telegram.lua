@@ -64,7 +64,7 @@ local current_js = {
   ["tgsticker.js"] = "31",
   ["telegram-web.js"] = "14",
   ["telegram-widget.js"] = "22",
-  ["discussion-widget.js"] = "9"
+  ["discussion-widget.js"] = "10"
 }
 
 math.randomseed(os.time())
