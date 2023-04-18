@@ -887,7 +887,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       ) and not (
         url["url"] == api_url
         and string.match(html, '<span%s+class="tgme_widget_message_author_name"%s+dir="auto">')
-        and string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_reply_text"%s+dir="auto">')
+        and (
+          string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_reply_text"%s+dir="auto">')
+          or string.match(html, '<div%s+class="tgme_widget_message_text%s+js%-message_text"%s+dir="auto">')
+        )
         and string.match(html, '<input%s+type="hidden"%s+name="reply_to_id"%s+value="[0-9]+">')
       ) then
         retry_url = true
