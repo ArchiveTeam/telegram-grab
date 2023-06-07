@@ -43,10 +43,7 @@ if StrictVersion(seesaw.__version__) < StrictVersion('0.8.5'):
 WGET_AT = find_executable(
     'Wget+AT',
     [
-        'GNU Wget 1.20.3-at.20211001.01',
-        'GNU Wget 1.21.3-at.20220503.02',
-        'GNU Wget 1.21.3-at.20220608.02',
-        'GNU Wget 1.21.3-at.20230208.01',
+        'GNU Wget 1.21.3-at.20230605.01'
     ],
     [
          './wget-at',
@@ -63,7 +60,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20230421.01'
+VERSION = '20230607.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -242,6 +239,10 @@ class WgetArgs(object):
             WGET_AT,
             '-U', USER_AGENT,
             '-nv',
+            '--host-lookups', 'dns',
+            '--hosts-file', '/dev/null',
+            '--resolvconf-file', '/dev/null',
+            '--dns-servers', '9.9.9.10,149.112.112.10,2620:fe::10,2620:fe::fe:10',
             '--content-on-error',
             '--no-http-keep-alive',
             '--lua-script', 'telegram.lua',
