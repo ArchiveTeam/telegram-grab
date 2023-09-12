@@ -617,9 +617,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
     end
     if url == api_url then
-      local data = JSON:decode(html)
-      html = string.gsub(data["comments_html"], "\\", "")
-      local data_before = string.match(html, '<div%s+class="tme_messages_more%s+accent_bghover%s+js%-messages_more"%s+data%-before="([0-9]+)">')
+      local data_before = string.match(html, '<div%s+class=\\"tme_messages_more%s+accent_bghover%s+js%-messages_more\\"%s+data%-before=\\"([0-9]+)\\">')
       if data_before then
         queue_discussion(data_before)
       end
