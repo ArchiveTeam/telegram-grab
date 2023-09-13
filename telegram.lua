@@ -1,8 +1,7 @@
-dofile("table_show.lua")
-dofile("urlcode.lua")
 local urlparse = require("socket.url")
 local http = require("socket.http")
-JSON = (loadfile "JSON.lua")()
+local cjson = require("cjson")
+local utf8 = require("utf8")
 
 local item_dir = os.getenv("item_dir")
 local warc_file_base = os.getenv("warc_file_base")
@@ -345,7 +344,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     newurl = string.gsub(
       newurl, "\\[uU]([0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])",
       function (s)
-        return unicode_codepoint_as_utf8(tonumber(s, 16))
+        return utf8.char(tonumber(s, 16))
       end
     )
     return newurl
@@ -605,7 +604,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       queue_resources = false
     end
     if string.match(url, "[%?&]discussion=1") then
-      local data = JSON:decode(string.match(html, "TWidgetAuth%.init%(({.-})%);"))
+      local data = cjson.decode(string.match(html, "TWidgetAuth%.init%(({.-})%);"))
       api_url = data['api_url']
       local form_data = string.match(html, "(<form[^>]+>.-</form>)")
       local data_before = string.match(html, '<div%s+class="tme_messages_more%s+accent_bghover%s+js%-messages_more"%s+data%-before="([0-9]+)">')
@@ -749,10 +748,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     local html = read_file(http_stat["local_file"])
     if string.match(url["url"], "%?before=")
       or string.match(url["url"], "%?after=") then
-      html = JSON:decode(html)
+      html = cjson.decode(html)
     end
     if url["url"] == api_url then
-      local data = JSON:decode(html)
+      local data = cjson.decode(html)
       if data["comments_cnt"] < 5 or not data["ok"] then
         io.stdout:write("Did not receive \"ok\" from API server.\n")
         io.stdout:flush()
@@ -1029,7 +1028,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
         "https://legacy-api.arpa.li/backfeed/legacy/" .. key .. parameters,
         items .. "\0"
       )
-      if code == 200 and body ~= nil and JSON:decode(body)["status_code"] == 200 then
+      if code == 200 and body ~= nil and cjson.decode(body)["status_code"] == 200 then
         io.stdout:write(string.match(body, "^(.-)%s*$") .. "\n")
         io.stdout:flush()
         break
