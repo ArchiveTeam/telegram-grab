@@ -60,7 +60,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20231011.01'
+VERSION = '20231011.02'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -239,7 +239,6 @@ class WgetArgs(object):
             WGET_AT,
             '-U', USER_AGENT,
             '-nv',
-            '--inet4-only',
             '--host-lookups', 'dns',
             '--hosts-file', '/dev/null',
             '--resolvconf-file', '/dev/null',
@@ -280,6 +279,9 @@ class WgetArgs(object):
         wget_args.extend([
             '--warc-zstd-dict', ItemInterpolation('%(item_dir)s/zstdict'),
         ])
+
+        if 'ALLOW_IPV6' not in os.environ:
+            wget_args.append('--inet4-only')
 
         item['item_name'] = '\0'.join(
             s for s in item['item_name'].split('\0')
