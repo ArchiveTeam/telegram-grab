@@ -10,6 +10,7 @@ local item_name = nil
 local item_value = nil
 local item_channel = nil
 local item_post = nil
+local item_comment = nil
 
 local selftext = nil
 
@@ -164,6 +165,10 @@ find_item = function(url)
     value = string.match(url, "^https?://t%.me/([^/]+/[^/]+)%?embed=1$")
     type_ = 'post'
   end
+  if not value then
+    value = string.match(url, "^https?://t%.me/([^/]+/[0-9]+%?comment=[0-9]+)$")
+    type_ = 'comment'
+  end
   if value and not covered_posts[string.lower(value)] then
     item_type = type_
     ids = {}
@@ -186,6 +191,10 @@ find_item = function(url)
       item_value = string.gsub(value, "/", ":")
       item_channel, item_post = string.match(value, "^([^/]+)/(.+)$")
       ids[item_post] = true
+    elseif type_ == "comment" then
+      item_channel, item_post, item_comment = string.match(value, "^([^/]+)/([0-9]+)%?comment=([0-9]+)$")
+      item_value = item_channel .. ":" .. item_post .. ":" .. item_comment
+      ids[item_comment] = true
     end
     item_name_new = item_type .. ":" .. item_value
     if item_name_new ~= item_name then
@@ -211,11 +220,18 @@ allowed = function(url, parenturl)
     return true
   end
 
+  if item_type ~= "comment" then
+    local a, b, c = string.match(url, "^https?://[^/]+/([^/]+)/([0-9]+)%?comment=([0-9]+)$")
+    if a then
+      discover_item(discovered_items, "comment:" .. a .. ":" .. b .. ":" .. c)
+      return false
+    end
+  end
+
   if string.match(url, "%?q=")
     or string.match(url, "%?before=")
     or string.match(url, "%?after=")
-    or string.match(url, "^https?://[^/]+/addstickers/")
-    or string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?comment=[0-9]+$") then
+    or string.match(url, "^https?://[^/]+/addstickers/") then
     return false
   end
 
@@ -270,7 +286,8 @@ allowed = function(url, parenturl)
     return false
   end
 
-  if item_type == "post" then
+  if item_type == "post"
+    or item_type == "comment" then
     local has_post_id = false
     for s in string.gmatch(url, "([0-9a-zA-Z_]+)") do
       if ids[s] then
@@ -604,6 +621,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       queue_resources = false
     end
     if string.match(url, "[%?&]discussion=1") then
+      queue_resources = false
       local data = cjson.decode(string.match(html, "TWidgetAuth%.init%(({.-})%);"))
       api_url = data['api_url']
       local form_data = string.match(html, "(<form[^>]+>.-</form>)")
@@ -616,9 +634,18 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
     end
     if url == api_url then
+      queue_resources = false
       local data_before = string.match(html, '<div%s+class=\\"tme_messages_more%s+accent_bghover%s+js%-messages_more\\"%s+data%-before=\\"([0-9]+)\\">')
       if data_before then
         queue_discussion(data_before)
+      end
+    end
+    if string.match(url, "%?comment=[0-9]+$") then
+      local data_telegram_post = string.match(html, 'data%-telegram%-post="([^"]+)"')
+      if string.match(data_telegram_post, "^[^/]+/[0-9]+$") then
+        discover_item(discovered_items, "post:" .. string.gsub(data_telegram_post, "/", ":"))
+      elseif string.match(data_telegram_post, "^[0-9]+$") then
+        discover_item(discovered_items, "post:" .. item_channel .. ":" .. data_telegram_post)
       end
     end
     html = string.gsub(html, "</span>", "")
@@ -837,7 +864,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         io.stdout:write("Valid 302 ?single page.\n")
         io.stdout:flush()
       elseif not (
-        item_type == "post"
+        (
+          item_type == "post"
+          or item_type == "comment"
+        )
         and (
           string.match(html, '<div%s+class="tgme_page%s+tgme_page_post">')
           and string.match(html, '<div%s+class="tgme_page_widget">')
@@ -983,6 +1013,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:flush()
     local maxtries = 11
     if (item_type == "post" and string.match(url["url"], "%?embed=1$"))
+      or (item_type == "comment" and string.match(url["url"], "%?comment=[0-9]+$"))
       or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/([^/%?&]+)$")) then
       io.stdout:write("Bad response on first URL.\n")
       io.stdout:flush()

@@ -60,7 +60,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20231011.02'
+VERSION = '20231018.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -300,6 +300,10 @@ class WgetArgs(object):
             elif item_type == 'channel':
                 wget_args.extend(['--warc-header', 'telegram-channel: '+item_value])
                 wget_args.append('https://t.me/s/'+item_value)
+            elif item_type == 'comment':
+                group, post_id, comment_id = item_value.split(':', 2)
+                wget_args.extend(['--warc-header', 'telegram-comment: {}/{}?comment={}'.format(group, post_id, comment_id)])
+                wget_args.append('https://t.me/{}/{}?comment={}'.format(group, post_id, comment_id))
             #elif item_type == 'url':
             #    wget_args.extend(['--warc-header', 'telegram-resource: '+item_value])
             #    wget_args.append(item_value)
