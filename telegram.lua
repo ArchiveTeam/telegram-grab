@@ -610,7 +610,13 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         check(newurl)
       end
     end
-    if item_type == "post" and string.match(url, "^https?://[^/]+/[^/]+/[0-9]+$") then
+    if (
+      item_type == "post"
+      and string.match(url, "^https?://[^/]+/[^/]+/[0-9]+$")
+    ) or (
+      item_type == "comment"
+      and string.match(url, "^https?://[^/]+/[^/]+/[0-9]+%?comment=[0-9]+$")
+    ) then
       discover_item(discovered_outlinks, string.match(html, '<meta%s+property="og:image"%s+content="([^"]+)">'))
     end
     if item_type == "post"
