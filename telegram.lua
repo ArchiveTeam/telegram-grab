@@ -513,6 +513,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     or domain == "telegram.me"
   )
   and not string.match(url, "%?embed=1")
+  and item_type ~= "comment"
   and not (
     disco_on
     and string.match(url, "^https?://t%.me/[^/%?]+/[0-9]+$")
@@ -648,10 +649,15 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
     if string.match(url, "%?comment=[0-9]+$") then
       local data_telegram_post = string.match(html, 'data%-telegram%-post="([^"]+)"')
-      if string.match(data_telegram_post, "^[^/]+/[0-9]+$") then
-        discover_item(discovered_items, "post:" .. string.gsub(data_telegram_post, "/", ":"))
-      elseif string.match(data_telegram_post, "^[0-9]+$") then
-        discover_item(discovered_items, "post:" .. item_channel .. ":" .. data_telegram_post)
+      if not data_telegram_post then
+        data_telegram_post = string.match(html, 'data%-post="([^"]+)"')
+      end
+      if data_telegram_post then
+        if string.match(data_telegram_post, "^[^/]+/[0-9]+$") then
+          discover_item(discovered_items, "post:" .. string.gsub(data_telegram_post, "/", ":"))
+        elseif string.match(data_telegram_post, "^[0-9]+$") then
+          discover_item(discovered_items, "post:" .. item_channel .. ":" .. data_telegram_post)
+        end
       end
     end
     html = string.gsub(html, "</span>", "")
