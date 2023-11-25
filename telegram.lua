@@ -848,7 +848,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         to_queue["https://t.me/" .. item_channel .. "/" .. id .. "?embed=1"] = true
       end
     end
-    for js_name, version in string.gmatch(html, "([^/]+%.js)%?([0-9]+)") do
+    for js_name, version in string.gmatch(html, "/([^/]+%.js)%?([0-9]+)") do
       if current_js[js_name] ~= version then
         io.stdout:write("Script " .. js_name .. " with version " .. version .. " is not known.\n")
         io.stdout:flush()
