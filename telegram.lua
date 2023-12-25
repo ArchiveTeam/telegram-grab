@@ -11,6 +11,7 @@ local item_value = nil
 local item_channel = nil
 local item_post = nil
 local item_comment = nil
+local item_start_time = nil
 
 local selftext = nil
 
@@ -200,6 +201,7 @@ find_item = function(url)
     if item_name_new ~= item_name then
       abortgrab = false
       queue_resources = true
+      item_start_time = os.time(os.date("!*t"))
       retry_url = false
       api_url = nil
       api_peer = nil
@@ -692,6 +694,14 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     local new_item = string.match(item_value, "^([^%%]+)")
     discover_item(discovered_items, "channel:" .. new_item)
     abort_item()
+  end
+
+  if item_type == "channel"
+    and os.time(os.date("!*t")) - item_start_time > 3600 then
+    io.stdout:write("Channel item has been running for more than an hour.\n")
+    io.stdout:flush()
+    abort_item()
+    return false
   end
 
   if abortgrab then
