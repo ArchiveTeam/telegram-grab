@@ -73,7 +73,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20240913.01'
+VERSION = '20240914.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -387,7 +387,7 @@ pipeline = Pipeline(
                 '--min-size', '1',
                 '--no-compress',
                 '--compress-level', '0',
-                '--ipv6'
+               # '--ipv6'
             ]
         ),
     ),
