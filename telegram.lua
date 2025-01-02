@@ -33,6 +33,7 @@ local discovered_outlinks = {}
 local discovered_items = {}
 local discovered_channels = {}
 local discovered_group_items = {}
+local discovered_manycomments = {}
 local bad_items = {}
 local ids = {}
 local covered_posts = {}
@@ -452,11 +453,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   end
 
   local function queue_discussion(data_before)
-    if comments_page_count >= comments_max_pages then
-      io.stdout:write("Queue maximum number of " .. tostring(comments_max_pages) .. " of comments pages.\n")
-      io.stdout:flush()
-      return nil
-    end
     local encoded_params = encode_params({
       peer=api_peer,
       top_msg_id=api_top_msg_id,
@@ -465,6 +461,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       method="loadComments"
     })
     if addedtolist[encoded_params] then
+      return nil
+    end
+    if comments_page_count >= comments_max_pages then
+      io.stdout:write("Queued maximum number of " .. tostring(comments_max_pages) .. " of comments pages.\n")
+      io.stdout:flush()
       return nil
     end
     comments_page_count = comments_page_count + 1
@@ -654,6 +655,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
       if comments_count > 200 then
         comments_max_pages = 2 -- 50 comments per page
+        discover_item(discovered_manycomments, item_name)
       end
       api_url = data['api_url']
       local form_data = string.match(html, "(<form[^>]+>.-</form>)")
@@ -1129,6 +1131,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     ["telegram-groups-temp-sqk1lhix8mnnk4p"] = discovered_group_items,
     --["telegram-iy46ve7bql0k79p"] = discovered_channels,
     ["telegram-channels-aqpadsraxi2b78y"] = discovered_channels,
+    ["telegram-manycomments-q65xztozh8liqi1g"] = discovered_manycomments,
     ["urls-h051713fi1agegy"] = discovered_outlinks
   }) do
     for shard, urls_data in pairs(data) do
