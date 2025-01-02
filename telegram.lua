@@ -46,6 +46,8 @@ local api_url = nil
 local api_peer = nil
 local api_top_msg_id = nil
 local api_discussion_hash = nil
+local comments_max_pages = 100
+local comments_page_count = 0
 
 local disco_finished = false
 local disco_on = false
@@ -60,7 +62,7 @@ local disco_current_url = nil
 local retry_url = false
 
 local current_js = {
-  ["widget-frame.js"] = "62",
+  ["widget-frame.js"] = "63",
   ["tgwallpaper.min.js"] = "3",
   ["tgsticker.js"] = "31",
   ["telegram-web.js"] = "14",
@@ -207,6 +209,8 @@ find_item = function(url)
       api_peer = nil
       api_top_msg_id = nil
       api_discussion_hash = nil
+      comments_max_pages = 100
+      comments_page_count = 0
       is_group_post = false
       is_media_not_supported = false
       is_only_in_app = false
@@ -448,22 +452,33 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   end
 
   local function queue_discussion(data_before)
+    if comments_page_count >= comments_max_pages then
+      io.stdout:write("Queue maximum number of " .. tostring(comments_max_pages) .. " of comments pages.\n")
+      io.stdout:flush()
+      return nil
+    end
+    local encoded_params = encode_params({
+      peer=api_peer,
+      top_msg_id=api_top_msg_id,
+      discussion_hash=api_discussion_hash,
+      before_id=data_before,
+      method="loadComments"
+    })
+    if addedtolist[encoded_params] then
+      return nil
+    end
+    comments_page_count = comments_page_count + 1
     io.stdout:write("Requesting discussion data before " .. data_before .. ".\n")
     io.stdout:flush()
     table.insert(urls, {
       url=api_url,
-      post_data=encode_params({
-        peer=api_peer,
-        top_msg_id=api_top_msg_id,
-        discussion_hash=api_discussion_hash,
-        before_id=data_before,
-        method="loadComments"
-      }),
+      post_data=encoded_params,
       headers={
         ["X-Requested-With"]="XMLHttpRequest",
         ["Accept"]="application/json, text/javascript, */*; q=0.01"
       }
     })
+    addedtolist[encoded_params] = true
   end
 
   if disco_finished and not disco_on then
@@ -632,6 +647,14 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     if string.match(url, "[%?&]discussion=1") then
       queue_resources = false
       local data = cjson.decode(string.match(html, "TWidgetAuth%.init%(({.-})%);"))
+      local discussion = cjson.decode(string.match(html, "TWidgetDiscussion%.init%(({.-})%);"))
+      local comments_count = discussion["comments_cnt"]
+      if not comments_count then
+        comments_count = 0
+      end
+      if comments_count > 200 then
+        comments_max_pages = 2 -- 50 comments per page
+      end
       api_url = data['api_url']
       local form_data = string.match(html, "(<form[^>]+>.-</form>)")
       local data_before = string.match(html, '<div%s+class="tme_messages_more%s+accent_bghover%s+js%-messages_more"%s+data%-before="([0-9]+)">')
