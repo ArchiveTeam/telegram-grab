@@ -73,7 +73,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20250708.01'
+VERSION = '20250715.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'telegram'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -279,6 +279,7 @@ class WgetArgs(object):
             '--warc-dedup-url-agnostic',
             '--warc-compression-use-zstd',
             '--warc-zstd-dict-no-include',
+            '--warc-tempdir', ItemInterpolation('%(item_dir)s'),
             '--header', 'Accept-Language: en-US;q=0.9, en;q=0.8',
             '--secure-protocol', 'TLSv1_2'
         ]
