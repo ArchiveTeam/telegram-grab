@@ -136,6 +136,7 @@ discover_item = function(target, item)
   local shard = ""
   if string.match(item, "^https?://[^/]*telegram%.org/dl%?")
     or string.match(item, "^https?://[^/]*cdn%-telegram%.org/")
+    or string.match(item, "^https?://[^/]*telegram%.space/")
     or string.match(item, "^https?://[^/]*telesco%.pe/") then
     shard = "telegram"
   end
@@ -257,7 +258,8 @@ allowed = function(url, parenturl)
   end
 
   if string.match(url, "^https?://[^/]*telesco%.pe/")
-    or string.match(url, "^https?://[^/]*cdn%-telegram%.org/") then
+    or string.match(url, "^https?://[^/]*cdn%-telegram%.org/")
+    or string.match(url, "^https?://[^/]*telegram%.space/") then
     if item_type == "url" then
       return true
     end
@@ -538,10 +540,20 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   ) then
     check("https://t.me" .. path)
     check("https://telegram.me" .. path)
-  elseif string.match(domain, "telesco%.pe") then
-    check(string.gsub(url, "telesco%.pe", "cdn%-telegram%.org"))
-  elseif string.match(domain, "cdn%-telegram%.org") then
-    check(string.gsub(url, "cdn%-telegram%.org", "telesco%.pe"))
+  end
+  local cdn_domains = {
+    "telesco%.pe",
+    "cdn%-telegram%.org",
+    "telegram%.space"
+  }
+  for _, d1 in pairs(cdn_domains) do
+    if string.match(domain, d1) then
+      for _, d2 in pairs(cdn_domains) do
+        if d1 ~= d2 then
+          check("https://" .. string.gsub(domain, d1, d2) .. path)
+        end
+      end
+    end
   end
 
   for url, _ in pairs(to_queue) do
@@ -735,7 +747,8 @@ wget.callbacks.write_to_warc = function(url, http_stat)
   end
 
   if string.match(url["url"], "^https?://[^/]*telesco%.pe/")
-    or string.match(url["url"], "^https?://[^/]*cdn%-telegram%.org/") then
+    or string.match(url["url"], "^https?://[^/]*cdn%-telegram%.org/")
+    or string.match(url["url"], "^https?://[^/]*telegram%.space/") then
     if http_stat["statcode"] == 404 then
       return true
     elseif http_stat["statcode"] ~= 200 then
@@ -903,6 +916,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       return true
     end]]
     if not string.match(html, "cdn%-telegram%.org")
+      and not string.match(html, "telegram%.space")
       and not string.match(html, "telesco%.pe") then
       io.stdout:write("Could not find CDNs on " .. url["url"] .. ".\n")
       io.stdout:flush()
@@ -990,6 +1004,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         if not image_domain or (
           image_domain ~= ""
           and not string.match(image_domain, "cdn%-telegram%.org/")
+          and not string.match(image_domain, "telegram%.space/")
           and not string.match(image_domain, "telesco%.pe/")
           and not string.match(image_domain, "telegram%.org/img/")
           and not string.match(image_domain, "data:image/")
