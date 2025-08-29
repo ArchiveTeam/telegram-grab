@@ -335,6 +335,33 @@ allowed = function(url, parenturl)
   return false
 end
 
+banned_test = function()
+  local tries = 0
+  while tries < 12 do
+    local body = http.request("https://t.me/telegram/400")
+    if string.match(body, "content=\"Telegram News\"")
+      and string.match(body, "Profiles now show a numerical rating based on the total volume of successful transactions")
+      and string.match(body, "<title>Telegram: View @telegram</title>")
+      and not (
+        string.match(body, "If you have <strong>Telegram</strong>")
+        or string.match(body, "<title>Telegram: Contact @telegram</title>")
+      ) then
+      return true
+    end
+    print("You are banned, sleeping.")
+    io.stdout:flush()
+    os.execute("sleep " .. math.pow(2, tries))
+    tries = tries + 1
+  end
+  return false
+end
+
+wget.callbacks.init = function()
+  if not banned_test() then
+    error("Was unable to get unbanned.")
+  end
+end
+
 wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_parsed, iri, verdict, reason)
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
@@ -1073,7 +1100,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   if retry_url or status_code == 0 then
     io.stdout:write("Server returned bad response. Sleeping.\n")
     io.stdout:flush()
-    local maxtries = 11
+    local maxtries = 12
     if (item_type == "post" and string.match(url["url"], "%?embed=1$"))
       or (item_type == "comment" and string.match(url["url"], "%?comment=[0-9]+$"))
       or (item_type == "channel" and string.match(url["url"], "^https?://t%.me/([^/%?&]+)$")) then
@@ -1183,6 +1210,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
 end
 
 wget.callbacks.before_exit = function(exit_status, exit_status_string)
+  banned_test()
   if killgrab then
     return wget.exits.IO_FAIL
   end
