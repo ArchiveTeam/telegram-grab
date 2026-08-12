@@ -63,7 +63,7 @@ local disco_current_url = nil
 local retry_url = false
 
 local current_js = {
-  ["widget-frame.js"] = "67",
+  ["widget-frame.js"] = "68",
   ["tgwallpaper.min.js"] = "3",
   ["tgsticker.js"] = "32",
   ["telegram-web.js"] = "14",
