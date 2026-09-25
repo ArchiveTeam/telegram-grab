@@ -134,8 +134,7 @@ discover_item = function(target, item)
     return nil
   end
   local shard = ""
-  if string.match(item, "^https?://[^/]*telegram%.org/dl%?")
-    or string.match(item, "^https?://[^/]*cdn%-telegram%.org/")
+  if string.match(item, "^https?://[^/]*cdn%-telegram%.org/")
     or string.match(item, "^https?://[^/]*telegram%.space/")
     or string.match(item, "^https?://[^/]*telesco%.pe/") then
     shard = "telegram"
@@ -239,7 +238,8 @@ allowed = function(url, parenturl)
   if string.match(url, "%?q=")
     or string.match(url, "%?before=")
     or string.match(url, "%?after=")
-    or string.match(url, "^https?://[^/]+/addstickers/") then
+    or string.match(url, "^https?://[^/]+/addstickers/")
+    or string.match(url, "^https?://[^/]*telegram%.org/dl%?") then
     return false
   end
 
